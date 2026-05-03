@@ -26,7 +26,6 @@
     "devDependencies": {
         "@eslint/js": "^9.39.2",
         "@types/debug": "^4.1.12",
-        "@types/deep-equal": "^1.0.4",
         "@types/diff": "^5.2.3",
         "@types/diff3": "^0.0.2",
         "@types/node": "^22.19.10",
@@ -57,7 +56,6 @@
         "codemirror": "^6.0.2",
         "css-color-converter": "^2.0.0",
         "debug": "^4.4.3",
-        "deep-equal": "^2.2.3",
         "diff": "^8.0.3",
         "diff2html": "^3.4.56",
         "diff3": "^0.0.4",

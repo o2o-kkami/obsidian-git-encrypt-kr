@@ -1,6 +1,5 @@
 import * as cssColorConverter from "css-color-converter";
 import { spawn, type SpawnOptionsWithoutStdio } from "child_process";
-import deepEqual from "deep-equal";
 import type { App, ItemView, RGB, WorkspaceLeaf } from "obsidian";
 import { Keymap, Menu, moment, TFile } from "obsidian";
 import { BINARY_EXTENSIONS } from "./constants";
@@ -108,10 +107,6 @@ export function momentToEpochSeconds(instant: moment.Moment): number {
 export function median(array: number[]): number | undefined {
     if (array.length === 0) return undefined;
     return array.slice().sort()[Math.floor(array.length / 2)];
-}
-
-export function strictDeepEqual<T>(a: T, b: T): boolean {
-    return deepEqual(a, b, { strict: true });
 }
 
 export function arrayProxyWithNewLength<T>(array: T[], length: number): T[] {

@@ -25,8 +25,8 @@ import {
     impossibleBranch,
     prefixOfLengthAsWhitespace,
     resizeToLength,
-    strictDeepEqual,
 } from "src/utils";
+import { isDeepStrictEqual } from "node:util";
 
 const VALUE_NOT_FOUND_FALLBACK = "-";
 
@@ -264,7 +264,9 @@ export class LineAuthoringGutter extends GutterMarker {
         }
 
         // add trailing * if author and comitter are different.
-        if (!strictDeepEqual(nonZeroCommit?.author, nonZeroCommit?.committer)) {
+        if (
+            !isDeepStrictEqual(nonZeroCommit?.author, nonZeroCommit?.committer)
+        ) {
             rendered = rendered + DIFFERING_AUTHOR_COMMITTER_MARKER;
         }
 
