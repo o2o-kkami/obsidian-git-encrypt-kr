@@ -1,4 +1,25 @@
-# Obsidian Git Plugin
+# Obsidian Git Plugin (암호화 포크 · `obsidian-git-encrypt-kr`)
+
+> ## 🔐 Fork notice — 한국어 사용자용 암호화 포크
+>
+> 이 저장소는 [Vinzent03/obsidian-git](https://github.com/Vinzent03/obsidian-git)의 **포크(fork)** 이며,
+> 원본 plugin 위에 **AES-256-GCM 투명 암호화 레이어**를 추가한 버전입니다.
+>
+> - 비밀번호로 도출한 키(PBKDF2)로 vault 파일을 암호화한 뒤 git 원격으로 push 합니다.
+>   원격 저장소(GitHub/GitLab 등)에는 **ciphertext만** 올라가며, 비밀번호를 모르는 사람은
+>   파일 내용을 읽을 수 없습니다.
+> - 모든 기능과 사용법은 아래 원본 README 그대로 적용됩니다. 본 fork 고유 설정(비밀번호 등)은
+>   설정 화면에 별도 섹션으로 추가되어 있습니다.
+>
+> **이슈/문의 안내**
+> - 이 fork(암호화 레이어, 한국어 UI 등) 관련: **본 저장소** ([Issues](https://github.com/o2o-kkami/obsidian-git-encrypt-kr/issues))
+> - plugin 본체 기능(commit/push/pull, Source Control View 등): [원본 저장소](https://github.com/Vinzent03/obsidian-git/issues)
+>
+> **라이선스**: MIT (원본과 동일, 본 fork에도 `LICENSE` 파일 그대로 유지).
+> **원작자**: [@Vinzent03](https://github.com/Vinzent03), [@denolehov](https://github.com/denolehov).
+> 아래 README 본문, Credits, Support(Ko-fi) 링크는 모두 원저자 그대로입니다.
+
+---
 
 A powerful community plugin for [Obsidian.md](Obsidian.md) that brings Git integration right into your vault. Automatically commit, pull, push, and see your changes — all within Obsidian.
 
