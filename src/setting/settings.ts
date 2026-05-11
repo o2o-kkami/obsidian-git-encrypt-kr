@@ -250,9 +250,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             new Setting(containerEl)
-                .setName(
-                    `자동 ${commitOrSync} 시 커밋 메시지 직접 입력`
-                )
+                .setName(`자동 ${commitOrSync} 시 커밋 메시지 직접 입력`)
                 .setDesc("매번 메시지를 입력하라는 팝업이 나타납니다.")
                 .addToggle((toggle) =>
                     toggle
@@ -602,9 +600,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
         new Setting(containerEl).setName("소스 컨트롤 뷰").setHeading();
 
         new Setting(containerEl)
-            .setName(
-                "파일 변경 시 소스 컨트롤 뷰 자동 새로고침"
-            )
+            .setName("파일 변경 시 소스 컨트롤 뷰 자동 새로고침")
             .setDesc(
                 "느린 기기에서는 렉을 유발할 수 있습니다. 그럴 경우 이 옵션을 끄세요."
             )
@@ -720,9 +716,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("상태표시줄 표시")
-            .setDesc(
-                "옵시디언을 재시작해야 변경사항이 적용됩니다."
-            )
+            .setDesc("옵시디언을 재시작해야 변경사항이 적용됩니다.")
             .addToggle((toggle) =>
                 toggle
                     .setValue(plugin.settings.showStatusBar)
@@ -748,9 +742,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("브랜치 상태표시줄 표시")
-            .setDesc(
-                "옵시디언을 재시작해야 변경사항이 적용됩니다."
-            )
+            .setDesc("옵시디언을 재시작해야 변경사항이 적용됩니다.")
             .addToggle((toggle) =>
                 toggle
                     .setValue(plugin.settings.showBranchStatusBar)
@@ -772,18 +764,14 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
         if (plugin.gitManager instanceof IsomorphicGit) {
-            new Setting(containerEl)
-                .setName("인증 / 커밋 작성자")
-                .setHeading();
+            new Setting(containerEl).setName("인증 / 커밋 작성자").setHeading();
         } else {
             new Setting(containerEl).setName("커밋 작성자").setHeading();
         }
 
         if (plugin.gitManager instanceof IsomorphicGit)
             new Setting(containerEl)
-                .setName(
-                    "git 서버의 사용자명 (예: GitHub의 username)"
-                )
+                .setName("git 서버의 사용자명 (예: GitHub의 username)")
                 .addText((cb) => {
                     cb.setValue(plugin.localStorage.getUsername() ?? "");
                     cb.onChange((value) => {
@@ -1212,9 +1200,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
             new Setting(this.containerEl)
                 .setName("작성 날짜 표시")
-                .setDesc(
-                    "라인 작성 일시의 표시 형식"
-                )
+                .setDesc("라인 작성 일시의 표시 형식")
                 .addDropdown((dropdown) => {
                     const options: Record<
                         LineAuthorDateTimeFormatOptions,
@@ -1446,9 +1432,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                         );
                     } catch (e) {
                         console.error("암호화 토글 적용 실패:", e);
-                        new Notice(
-                            "적용 실패 — 개발자 콘솔을 확인하세요"
-                        );
+                        new Notice("적용 실패 — 개발자 콘솔을 확인하세요");
                     }
                 });
             });
@@ -1552,22 +1536,16 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("기본값 불러오기")
-            .setDesc(
-                "현재 .gitignore 내용을 지우고 기본값으로 덮어씁니다."
-            )
+            .setDesc("현재 .gitignore 내용을 지우고 기본값으로 덮어씁니다.")
             .addButton((btn) => {
                 btn.setButtonText("기본값으로 재설정").onClick(async () => {
                     try {
                         await adapter.write(gitignorePath, DEFAULT_GITIGNORE);
                         textArea?.setValue(DEFAULT_GITIGNORE);
-                        new Notice(
-                            ".gitignore를 기본값으로 재설정했습니다."
-                        );
+                        new Notice(".gitignore를 기본값으로 재설정했습니다.");
                     } catch (e) {
                         console.error(".gitignore 재설정 실패:", e);
-                        new Notice(
-                            "재설정 실패 — 개발자 콘솔을 확인하세요"
-                        );
+                        new Notice("재설정 실패 — 개발자 콘솔을 확인하세요");
                     }
                 });
             });

@@ -96,8 +96,7 @@ export class StatusBar {
 
         if (this.plugin.localStorage.getPausedAutomatics()) {
             setIcon(this.pausedEl, "pause-circle");
-            this.pausedEl.ariaLabel =
-                "자동화가 현재 일시정지 상태입니다.";
+            this.pausedEl.ariaLabel = "자동화가 현재 일시정지 상태입니다.";
             this.pausedEl.style.marginRight = "5px";
             this.pausedEl.addClass(this.base + "paused");
         } else {

@@ -87,16 +87,13 @@ export class IsomorphicGit extends GitManager {
                 };
             },
             onAuthFailure: async () => {
-                new Notice(
-                    "인증 실패. 다른 자격증명으로 다시 시도하세요."
-                );
+                new Notice("인증 실패. 다른 자격증명으로 다시 시도하세요.");
                 const username = await new GeneralModal(this.plugin, {
                     placeholder: "사용자명 입력",
                 }).openAndGetResult();
                 if (username) {
                     const password = await new GeneralModal(this.plugin, {
-                        placeholder:
-                            "비밀번호 또는 Personal Access Token 입력",
+                        placeholder: "비밀번호 또는 Personal Access Token 입력",
                         obscure: true,
                     }).openAndGetResult();
                     if (password) {

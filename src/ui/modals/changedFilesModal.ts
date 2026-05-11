@@ -10,9 +10,7 @@ export class ChangedFilesModal extends FuzzySuggestModal<FileStatusResult> {
         super(plugin.app);
         this.plugin = plugin;
         this.changedFiles = changedFiles;
-        this.setPlaceholder(
-            "지원되지 않는 파일은 기본 앱으로 열립니다."
-        );
+        this.setPlaceholder("지원되지 않는 파일은 기본 앱으로 열립니다.");
     }
 
     getItems(): FileStatusResult[] {

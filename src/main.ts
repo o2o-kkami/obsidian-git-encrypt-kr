@@ -557,7 +557,8 @@ export default class ObsidianGit extends Plugin {
      */
     isEncryptionLocked(): boolean {
         return (
-            this.settings.encryption.enabled && this.encryptionKeys === undefined
+            this.settings.encryption.enabled &&
+            this.encryptionKeys === undefined
         );
     }
 
@@ -644,7 +645,7 @@ export default class ObsidianGit extends Plugin {
                         10000
                     );
                     break;
-                case "valid":
+                case "valid": {
                     this.gitReady = true;
                     this.setPluginState({ gitAction: CurrentGitAction.idle });
 
@@ -712,6 +713,7 @@ export default class ObsidianGit extends Plugin {
                     }
 
                     break;
+                }
                 default:
                     this.log(
                         "예상치 못한 상황. 'checkRequirements' 결과: " +
@@ -773,8 +775,7 @@ export default class ObsidianGit extends Plugin {
                     new Notice("Clone이 중단되었습니다.");
                     return;
                 } else if (containsConflictDir === "예") {
-                    const confirmOption =
-                        "로컬 설정과 플러그인을 모두 삭제";
+                    const confirmOption = "로컬 설정과 플러그인을 모두 삭제";
                     const modal = new GeneralModal(this, {
                         options: ["Clone 중단", confirmOption],
                         placeholder: `충돌 방지를 위해 로컬 ${this.app.vault.configDir} 디렉토리를 삭제해야 합니다.`,
@@ -1408,12 +1409,17 @@ export default class ObsidianGit extends Plugin {
         const remoteBranch = await this.selectRemoteBranch();
 
         if (remoteBranch == undefined) {
-            this.displayError("중단되었습니다. Upstream 브랜치가 설정되지 않았습니다.", 10000);
+            this.displayError(
+                "중단되었습니다. Upstream 브랜치가 설정되지 않았습니다.",
+                10000
+            );
             this.setPluginState({ gitAction: CurrentGitAction.idle });
             return false;
         } else {
             await this.gitManager.updateUpstreamBranch(remoteBranch);
-            this.displayMessage(`Upstream 브랜치를 ${remoteBranch}로 설정했습니다.`);
+            this.displayMessage(
+                `Upstream 브랜치를 ${remoteBranch}로 설정했습니다.`
+            );
             this.setPluginState({ gitAction: CurrentGitAction.idle });
             return true;
         }
@@ -1532,8 +1538,7 @@ export default class ObsidianGit extends Plugin {
 
         const nameModal = new GeneralModal(this, {
             options: remotes,
-            placeholder:
-                "원격 이름을 선택하거나 새 이름을 입력해서 만드세요",
+            placeholder: "원격 이름을 선택하거나 새 이름을 입력해서 만드세요",
         });
         const remoteName = await nameModal.openAndGetResult();
 
@@ -1568,8 +1573,7 @@ export default class ObsidianGit extends Plugin {
 
         const nameModal = new GeneralModal(this, {
             options: remotes,
-            placeholder:
-                "원격 이름을 선택하거나 새 이름을 입력해서 만드세요",
+            placeholder: "원격 이름을 선택하거나 새 이름을 입력해서 만드세요",
         });
         const remoteName =
             selectedRemote ?? (await nameModal.openAndGetResult());
@@ -1683,8 +1687,8 @@ export default class ObsidianGit extends Plugin {
         if (!this.settings.disablePopups) {
             if (
                 !this.settings.disablePopupsForNoChanges ||
-                !message.startsWith("커밋할 변경사항이 없습니다") &&
-                !message.startsWith("No changes")
+                (!message.startsWith("커밋할 변경사항이 없습니다") &&
+                    !message.startsWith("No changes"))
             ) {
                 new Notice(message, 5 * 1000);
             }

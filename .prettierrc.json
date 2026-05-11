@@ -2,6 +2,7 @@
     "trailingComma": "es5",
     "tabWidth": 4,
     "semi": true,
+    "endOfLine": "auto",
     "plugins": ["prettier-plugin-svelte"],
     "overrides": [{ "files": "*.svelte", "options": { "parser": "svelte" } }]
 }

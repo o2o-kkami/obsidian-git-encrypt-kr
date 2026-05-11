@@ -433,7 +433,9 @@ export function addCommmands(plugin: ObsidianGit) {
             const res = await plugin.discardAll();
             switch (res) {
                 case "discard":
-                    new Notice("추적 중인 파일들의 변경사항을 모두 버렸습니다.");
+                    new Notice(
+                        "추적 중인 파일들의 변경사항을 모두 버렸습니다."
+                    );
                     break;
                 case "delete":
                     new Notice("모든 파일을 버렸습니다.");

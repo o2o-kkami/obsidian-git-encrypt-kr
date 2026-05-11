@@ -1,4 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/require-await */
+// Mirror MyAdapter's eslint disables — this class extends it and inherits
+// the same `promises: any` plumbing into isomorphic-git, so the same
+// trade-offs apply.
 /**
  * EncryptedAdapter — transparent encryption layer between isomorphic-git
  * and the vault filesystem.
@@ -120,10 +126,7 @@ export class EncryptedAdapter extends MyAdapter {
             const pt = await decrypt(bytes, this.keys);
             return super.writeFile(
                 path,
-                pt.buffer.slice(
-                    pt.byteOffset,
-                    pt.byteOffset + pt.byteLength
-                )
+                pt.buffer.slice(pt.byteOffset, pt.byteOffset + pt.byteLength)
             );
         }
 

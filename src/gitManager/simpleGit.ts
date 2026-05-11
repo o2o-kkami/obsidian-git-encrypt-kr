@@ -55,7 +55,9 @@ export class SimpleGit extends GitManager {
                         this.plugin.settings.basePath
                     );
                 } else if (!ignoreError) {
-                    new Notice("ObsidianGit: 기본 경로(base path)가 존재하지 않습니다.");
+                    new Notice(
+                        "ObsidianGit: 기본 경로(base path)가 존재하지 않습니다."
+                    );
                 }
             }
             this.absoluteRepoPath = basePath;
