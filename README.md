@@ -1,23 +1,50 @@
-# Obsidian Git Plugin (암호화 포크 · `obsidian-git-encrypt-kr`)
+# Obsidian Git Plugin — Encryption Fork (`obsidian-git-encrypt-kr`)
 
-> ## 🔐 Fork notice — 한국어 사용자용 암호화 포크
+> ## 🔐 Fork notice
+>
+> This repository is a **fork** of [Vinzent03/obsidian-git](https://github.com/Vinzent03/obsidian-git),
+> based on upstream **v2.38.2**, that adds a transparent **AES-256-GCM encryption layer** on top.
+>
+> - Files in your vault are encrypted with a password-derived key (PBKDF2) **before** they are
+>   pushed to the git remote. Only **ciphertext** is uploaded — anyone without the password
+>   (including the git hosting provider) cannot read the file contents on the remote.
+> - All original plugin features and usage described in the README below remain unchanged.
+>   Fork-specific configuration (encryption password setup, etc.) is exposed as a separate
+>   section in the plugin's Settings tab.
+> - Plugin version `2.38.2-enc.N` tracks upstream **v2.38.2** + encryption-fork patch level `N`.
+>
+> **Where to file issues**
+> - Fork-specific (encryption layer, Korean-language UI, this repo): [Issues in this repo](https://github.com/o2o-kkami/obsidian-git-encrypt-kr/issues)
+> - Core plugin behavior (commit/push/pull, Source Control View, etc.): [Upstream repo](https://github.com/Vinzent03/obsidian-git/issues)
+>
+> **License**: MIT (same as upstream — `LICENSE` retained unchanged).
+> **Original authors**: [@Vinzent03](https://github.com/Vinzent03), [@denolehov](https://github.com/denolehov),
+> plus all upstream contributors (see the **Contributors** tab and `git log`). Their README body,
+> Credits, and Ko-fi support link below are preserved as-is — please direct support to the
+> original authors, not to this fork.
+>
+> ### 🇰🇷 한국어 안내
 >
 > 이 저장소는 [Vinzent03/obsidian-git](https://github.com/Vinzent03/obsidian-git)의 **포크(fork)** 이며,
-> 원본 plugin 위에 **AES-256-GCM 투명 암호화 레이어**를 추가한 버전입니다.
+> 기반 버전은 upstream **v2.38.2** 입니다. 원본 plugin 위에 **AES-256-GCM 투명 암호화 레이어**를
+> 추가한 버전입니다.
 >
 > - 비밀번호로 도출한 키(PBKDF2)로 vault 파일을 암호화한 뒤 git 원격으로 push 합니다.
->   원격 저장소(GitHub/GitLab 등)에는 **ciphertext만** 올라가며, 비밀번호를 모르는 사람은
->   파일 내용을 읽을 수 없습니다.
-> - 모든 기능과 사용법은 아래 원본 README 그대로 적용됩니다. 본 fork 고유 설정(비밀번호 등)은
->   설정 화면에 별도 섹션으로 추가되어 있습니다.
+>   원격 저장소(GitHub/GitLab 등)에는 **ciphertext만** 올라가며, 비밀번호를 모르는 사람
+>   (호스팅 제공자 포함)은 파일 내용을 읽을 수 없습니다.
+> - 원본 plugin의 모든 기능과 사용법은 아래 README 본문 그대로 적용됩니다. 본 fork 고유 설정
+>   (암호화 비밀번호 등)은 plugin 설정 화면에 별도 섹션으로 추가되어 있습니다.
+> - plugin 버전 `2.38.2-enc.N`은 upstream **v2.38.2** + 암호화 fork 패치 레벨 `N`을 의미합니다.
 >
-> **이슈/문의 안내**
-> - 이 fork(암호화 레이어, 한국어 UI 등) 관련: **본 저장소** ([Issues](https://github.com/o2o-kkami/obsidian-git-encrypt-kr/issues))
+> **이슈 제출 안내**
+> - 본 fork(암호화 레이어, 한국어 UI 등) 관련: **본 저장소** ([Issues](https://github.com/o2o-kkami/obsidian-git-encrypt-kr/issues))
 > - plugin 본체 기능(commit/push/pull, Source Control View 등): [원본 저장소](https://github.com/Vinzent03/obsidian-git/issues)
 >
 > **라이선스**: MIT (원본과 동일, 본 fork에도 `LICENSE` 파일 그대로 유지).
-> **원작자**: [@Vinzent03](https://github.com/Vinzent03), [@denolehov](https://github.com/denolehov).
-> 아래 README 본문, Credits, Support(Ko-fi) 링크는 모두 원저자 그대로입니다.
+> **원작자**: [@Vinzent03](https://github.com/Vinzent03), [@denolehov](https://github.com/denolehov) 외
+> 모든 upstream 기여자 (**Contributors** 탭 및 `git log` 참조).
+> 아래 README 본문, Credits, Ko-fi 후원 링크는 모두 원저자 그대로이며,
+> 후원은 fork가 아닌 원저자에게 보내주세요.
 
 ---
 
