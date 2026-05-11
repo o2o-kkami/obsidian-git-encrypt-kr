@@ -75,6 +75,12 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
         // together to make this safe by construction.
         this.addEncryptionSection(this.containerEl);
 
+        // .gitignore editor sits right next to the encryption section: a
+        // user setting up an encrypted vault on a new device typically
+        // wants to curate the ignore-list at the same time (and before
+        // any auto-commit-and-sync settings below could fire).
+        this.addGitignoreSection(this.containerEl);
+
         if (!gitReady) {
             containerEl.createEl("p", {
                 text: "Git이 아직 준비되지 않았습니다. 모든 설정을 올바르게 맞추면 커밋·동기화 등을 구성할 수 있습니다.",
@@ -1040,8 +1046,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             }
         }
 
-        // (Encryption section rendered at the TOP of display() now.)
-        this.addGitignoreSection(this.containerEl);
+        // (Encryption and .gitignore sections are now rendered at the
+        // TOP of display() so users see them before scrolling into
+        // sync-related settings.)
     }
 
     mayDisableSetting(setting: Setting, disable: boolean) {
