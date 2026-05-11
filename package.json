@@ -23,6 +23,7 @@
         "node": ">=18",
         "pnpm": ">=9"
     },
+    "packageManager": "pnpm@10.33.4",
     "devDependencies": {
         "@eslint/js": "^9.39.2",
         "@types/debug": "^4.1.12",
