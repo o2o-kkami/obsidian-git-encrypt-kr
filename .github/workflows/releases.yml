@@ -6,7 +6,7 @@ on:
             - "*"
 
 env:
-    PLUGIN_NAME: obsidian-git
+    PLUGIN_NAME: obsidian-git-encrypt-kr
 
 permissions:
     id-token: write
@@ -18,13 +18,17 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v2
+            - uses: pnpm/action-setup@v4
               with:
                   version: latest
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "pnpm"
             - name: Build
               id: build
               run: |
-                  pnpm install
+                  pnpm install --frozen-lockfile
                   pnpm run build --if-present
                   mkdir ${{ env.PLUGIN_NAME }}
                   cp main.js manifest.json styles.css ${{ env.PLUGIN_NAME }}
@@ -44,7 +48,9 @@ jobs:
                   tag_name: ${{ github.ref }}
                   name: ${{ github.ref_name }}
                   generate_release_notes: false
-                  body: See the [changelog](https://github.com/Vinzent03/obsidian-git/blob/master/CHANGELOG.md) for details.
+                  body: |
+                      See the upstream [changelog](https://github.com/Vinzent03/obsidian-git/blob/master/CHANGELOG.md) for plugin-body details.
+                      This is an encryption fork (`obsidian-git-encrypt-kr`); see this repo's README for fork-specific notes.
                   draft: false
                   prerelease: false
                   files: |
