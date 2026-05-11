@@ -11,7 +11,7 @@ export class ChangedFilesModal extends FuzzySuggestModal<FileStatusResult> {
         this.plugin = plugin;
         this.changedFiles = changedFiles;
         this.setPlaceholder(
-            "Not supported files will be opened by default app!"
+            "지원되지 않는 파일은 기본 앱으로 열립니다."
         );
     }
 
@@ -21,14 +21,14 @@ export class ChangedFilesModal extends FuzzySuggestModal<FileStatusResult> {
 
     getItemText(item: FileStatusResult): string {
         if (item.index == "U" && item.workingDir == "U") {
-            return `Untracked | ${item.vaultPath}`;
+            return `미추적 | ${item.vaultPath}`;
         }
 
         let workingDir = "";
         let index = "";
 
         if (item.workingDir != " ")
-            workingDir = `Working Dir: ${item.workingDir} `;
+            workingDir = `작업 디렉토리: ${item.workingDir} `;
         if (item.index != " ") index = `Index: ${item.index}`;
 
         return `${workingDir}${index} | ${item.vaultPath}`;

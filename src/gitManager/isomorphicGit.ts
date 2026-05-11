@@ -25,6 +25,7 @@ import { GeneralModal } from "../ui/modals/generalModal";
 import { splitRemoteBranch, worthWalking } from "../utils";
 import { GitManager } from "./gitManager";
 import { MyAdapter } from "./myAdapter";
+import { EncryptedAdapter } from "./encryptedAdapter";
 import diff3Merge from "diff3";
 
 export class IsomorphicGit extends GitManager {
@@ -52,10 +53,17 @@ export class IsomorphicGit extends GitManager {
         "123": "MM",
     };
     private readonly noticeLength = 999_999;
-    private readonly fs = new MyAdapter(this.app.vault, this.plugin);
+    private readonly fs: MyAdapter;
 
     constructor(plugin: ObsidianGit) {
         super(plugin);
+        if (plugin.settings.encryption.enabled) {
+            const ea = new EncryptedAdapter(this.app.vault, this.plugin);
+            if (plugin.encryptionKeys) ea.setKeys(plugin.encryptionKeys);
+            this.fs = ea;
+        } else {
+            this.fs = new MyAdapter(this.app.vault, this.plugin);
+        }
     }
 
     getRepo(): {
@@ -80,15 +88,15 @@ export class IsomorphicGit extends GitManager {
             },
             onAuthFailure: async () => {
                 new Notice(
-                    "Authentication failed. Please try with different credentials"
+                    "인증 실패. 다른 자격증명으로 다시 시도하세요."
                 );
                 const username = await new GeneralModal(this.plugin, {
-                    placeholder: "Specify your username",
+                    placeholder: "사용자명 입력",
                 }).openAndGetResult();
                 if (username) {
                     const password = await new GeneralModal(this.plugin, {
                         placeholder:
-                            "Specify your password/personal access token",
+                            "비밀번호 또는 Personal Access Token 입력",
                         obscure: true,
                     }).openAndGetResult();
                     if (password) {
@@ -152,7 +160,7 @@ export class IsomorphicGit extends GitManager {
         let notice: Notice | undefined;
         const timeout = window.setTimeout(() => {
             notice = new Notice(
-                "This takes longer: Getting status",
+                "오래 걸립니다: 상태 가져오는 중...",
                 this.noticeLength
             );
         }, 20000);
@@ -1017,7 +1025,7 @@ export class IsomorphicGit extends GitManager {
         let notice: Notice | undefined;
         const timeout = window.setTimeout(() => {
             notice = new Notice(
-                "This takes longer: Getting status",
+                "오래 걸립니다: 상태 가져오는 중...",
                 this.noticeLength
             );
         }, 20000);
@@ -1254,7 +1262,7 @@ export class IsomorphicGit extends GitManager {
         const email = await this.getConfig("user.email");
         if (!name || !email) {
             throw Error(
-                "Git author name and email are not set. Please set both fields in the settings."
+                "Git 작성자 이름과 이메일이 설정되지 않았습니다. 설정에서 두 항목을 모두 입력하세요."
             );
         }
     }

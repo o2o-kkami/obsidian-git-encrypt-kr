@@ -14,7 +14,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "edit-gitignore",
-        name: "Edit .gitignore",
+        name: ".gitignore 편집",
         callback: async () => {
             const path = plugin.gitManager.getRelativeVaultPath(".gitignore");
             if (!(await app.vault.adapter.exists(path))) {
@@ -31,7 +31,7 @@ export function addCommmands(plugin: ObsidianGit) {
     });
     plugin.addCommand({
         id: "open-git-view",
-        name: "Open source control view",
+        name: "소스 컨트롤 뷰 열기",
         callback: async () => {
             const leafs = app.workspace.getLeavesOfType(
                 SOURCE_CONTROL_VIEW_CONFIG.type
@@ -56,7 +56,7 @@ export function addCommmands(plugin: ObsidianGit) {
     });
     plugin.addCommand({
         id: "open-history-view",
-        name: "Open history view",
+        name: "히스토리 뷰 열기",
         callback: async () => {
             const leafs = app.workspace.getLeavesOfType(
                 HISTORY_VIEW_CONFIG.type
@@ -82,7 +82,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "open-diff-view",
-        name: "Open diff view",
+        name: "Diff 뷰 열기",
         checkCallback: (checking) => {
             const file = app.workspace.getActiveFile();
             if (checking) {
@@ -102,7 +102,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "view-file-on-github",
-        name: "Open file on GitHub",
+        name: "GitHub에서 파일 열기",
         editorCallback: (editor, { file }) => {
             if (file) return openLineInGitHub(editor, file, plugin.gitManager);
         },
@@ -110,7 +110,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "view-history-on-github",
-        name: "Open file history on GitHub",
+        name: "GitHub에서 파일 히스토리 열기",
         editorCallback: (_, { file }) => {
             if (file) return openHistoryInGitHub(file, plugin.gitManager);
         },
@@ -131,14 +131,14 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "switch-to-remote-branch",
-        name: "Switch to remote branch",
+        name: "원격 브랜치로 전환",
         callback: () =>
             plugin.promiseQueue.addTask(() => plugin.switchRemoteBranch()),
     });
 
     plugin.addCommand({
         id: "add-to-gitignore",
-        name: "Add file to .gitignore",
+        name: ".gitignore에 파일 추가",
         checkCallback: (checking) => {
             const file = app.workspace.getActiveFile();
             if (checking) {
@@ -153,7 +153,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "push",
-        name: "Commit-and-sync",
+        name: "커밋 & 동기화",
         callback: () =>
             plugin.promiseQueue.addTask(() =>
                 plugin.commitAndSync({ fromAutoBackup: false })
@@ -162,7 +162,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "backup-and-close",
-        name: "Commit-and-sync and then close Obsidian",
+        name: "커밋 & 동기화 후 옵시디언 종료",
         callback: () =>
             plugin.promiseQueue.addTask(async () => {
                 await plugin.commitAndSync({ fromAutoBackup: false });
@@ -172,7 +172,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit-push-specified-message",
-        name: "Commit-and-sync with specific message",
+        name: "커밋 & 동기화 (메시지 직접 입력)",
         callback: () =>
             plugin.promiseQueue.addTask(() =>
                 plugin.commitAndSync({
@@ -184,7 +184,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit",
-        name: "Commit all changes",
+        name: "모든 변경 커밋",
         callback: () =>
             plugin.promiseQueue.addTask(() =>
                 plugin.commit({ fromAuto: false })
@@ -193,7 +193,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit-specified-message",
-        name: "Commit all changes with specific message",
+        name: "모든 변경 커밋 (메시지 직접 입력)",
         callback: () =>
             plugin.promiseQueue.addTask(() =>
                 plugin.commit({
@@ -205,7 +205,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit-smart",
-        name: "Commit",
+        name: "커밋",
         callback: () =>
             plugin.promiseQueue.addTask(async () => {
                 const status = await plugin.updateCachedStatus();
@@ -220,7 +220,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit-staged",
-        name: "Commit staged",
+        name: "Staged 파일 커밋",
         checkCallback: function (checking) {
             // Don't show this command in command palette, because the
             // commit-smart command is more useful. Still provide this command
@@ -239,7 +239,7 @@ export function addCommmands(plugin: ObsidianGit) {
     if (Platform.isDesktopApp) {
         plugin.addCommand({
             id: "commit-amend-staged-specified-message",
-            name: "Amend staged",
+            name: "Staged 파일로 amend",
             callback: () =>
                 plugin.promiseQueue.addTask(() =>
                     plugin.commit({
@@ -254,7 +254,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit-smart-specified-message",
-        name: "Commit with specific message",
+        name: "커밋 (메시지 직접 입력)",
         callback: () =>
             plugin.promiseQueue.addTask(async () => {
                 const status = await plugin.updateCachedStatus();
@@ -269,7 +269,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "commit-staged-specified-message",
-        name: "Commit staged with specific message",
+        name: "Staged 파일 커밋 (메시지 직접 입력)",
         checkCallback: function (checking) {
             // Same reason as for commit-staged
             if (checking) return false;
@@ -291,7 +291,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "stage-current-file",
-        name: "Stage current file",
+        name: "현재 파일 stage",
         checkCallback: (checking) => {
             const file = app.workspace.getActiveFile();
             if (checking) {
@@ -304,7 +304,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "unstage-current-file",
-        name: "Unstage current file",
+        name: "현재 파일 unstage",
         checkCallback: (checking) => {
             const file = app.workspace.getActiveFile();
             if (checking) {
@@ -317,81 +317,81 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "edit-remotes",
-        name: "Edit remotes",
+        name: "원격 편집",
         callback: () =>
             plugin.editRemotes().catch((e) => plugin.displayError(e)),
     });
 
     plugin.addCommand({
         id: "remove-remote",
-        name: "Remove remote",
+        name: "원격 제거",
         callback: () =>
             plugin.removeRemote().catch((e) => plugin.displayError(e)),
     });
 
     plugin.addCommand({
         id: "set-upstream-branch",
-        name: "Set upstream branch",
+        name: "Upstream 브랜치 설정",
         callback: () =>
             plugin.setUpstreamBranch().catch((e) => plugin.displayError(e)),
     });
 
     plugin.addCommand({
         id: "delete-repo",
-        name: "CAUTION: Delete repository",
+        name: "⚠ 저장소 삭제",
         callback: async () => {
             const repoExists = await app.vault.adapter.exists(
                 `${plugin.settings.basePath}/.git`
             );
             if (repoExists) {
                 const modal = new GeneralModal(plugin, {
-                    options: ["NO", "YES"],
+                    options: ["아니오", "예"],
                     placeholder:
-                        "Do you really want to delete the repository (.git directory)? plugin action cannot be undone.",
+                        "정말로 저장소(.git 디렉토리)를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
                     onlySelection: true,
                 });
-                const shouldDelete = (await modal.openAndGetResult()) === "YES";
+                const shouldDelete = (await modal.openAndGetResult()) === "예";
                 if (shouldDelete) {
                     await app.vault.adapter.rmdir(
                         `${plugin.settings.basePath}/.git`,
                         true
                     );
                     new Notice(
-                        "Successfully deleted repository. Reloading plugin..."
+                        "저장소를 삭제했습니다. 플러그인을 다시 로드합니다..."
                     );
                     plugin.unloadPlugin();
                     await plugin.init({ fromReload: true });
                 }
             } else {
-                new Notice("No repository found");
+                new Notice("저장소를 찾을 수 없습니다.");
             }
         },
     });
 
     plugin.addCommand({
         id: "init-repo",
-        name: "Initialize a new repo",
+        name: "새 저장소 초기화",
         callback: () =>
             plugin.createNewRepo().catch((e) => plugin.displayError(e)),
     });
 
     plugin.addCommand({
         id: "clone-repo",
-        name: "Clone an existing remote repo",
+        name: "원격 저장소 clone",
         callback: () =>
             plugin.cloneNewRepo().catch((e) => plugin.displayError(e)),
     });
 
     plugin.addCommand({
         id: "list-changed-files",
-        name: "List changed files",
+        name: "변경된 파일 목록 보기",
         callback: async () => {
             if (!(await plugin.isAllInitialized())) return;
 
             try {
                 const status = await plugin.updateCachedStatus();
                 if (status.changed.length + status.staged.length > 500) {
-                    plugin.displayError("Too many changes to display");
+                    plugin.displayError("표시할 변경사항이 너무 많습니다.");
                     return;
                 }
 
@@ -404,7 +404,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "switch-branch",
-        name: "Switch branch",
+        name: "브랜치 전환",
         callback: () => {
             plugin.switchBranch().catch((e) => plugin.displayError(e));
         },
@@ -412,7 +412,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "create-branch",
-        name: "Create new branch",
+        name: "새 브랜치 만들기",
         callback: () => {
             plugin.createBranch().catch((e) => plugin.displayError(e));
         },
@@ -420,7 +420,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "delete-branch",
-        name: "Delete branch",
+        name: "브랜치 삭제",
         callback: () => {
             plugin.deleteBranch().catch((e) => plugin.displayError(e));
         },
@@ -428,15 +428,15 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "discard-all",
-        name: "CAUTION: Discard all changes",
+        name: "⚠ 모든 변경 버리기",
         callback: async () => {
             const res = await plugin.discardAll();
             switch (res) {
                 case "discard":
-                    new Notice("Discarded all changes in tracked files.");
+                    new Notice("추적 중인 파일들의 변경사항을 모두 버렸습니다.");
                     break;
                 case "delete":
-                    new Notice("Discarded all files.");
+                    new Notice("모든 파일을 버렸습니다.");
                     break;
                 case false:
                     break;
@@ -448,23 +448,23 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "pause-automatic-routines",
-        name: "Pause/Resume automatic routines",
+        name: "자동화 일시정지/재개",
         callback: () => {
             const pause = !plugin.localStorage.getPausedAutomatics();
             plugin.localStorage.setPausedAutomatics(pause);
             if (pause) {
                 plugin.automaticsManager.unload();
-                new Notice(`Paused automatic routines.`);
+                new Notice(`자동화를 일시정지했습니다.`);
             } else {
                 plugin.automaticsManager.reload("commit", "push", "pull");
-                new Notice(`Resumed automatic routines.`);
+                new Notice(`자동화를 재개했습니다.`);
             }
         },
     });
 
     plugin.addCommand({
         id: "raw-command",
-        name: "Raw command",
+        name: "Raw 명령 실행",
         checkCallback: (checking) => {
             const gitManager = plugin.gitManager;
             if (checking) {
@@ -480,7 +480,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "toggle-line-author-info",
-        name: "Toggle line author information",
+        name: "라인 작성자 정보 토글",
         callback: () =>
             plugin.settingsTab?.configureLineAuthorShowStatus(
                 !plugin.settings.lineAuthor.show
@@ -489,7 +489,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "reset-hunk",
-        name: "Reset hunk",
+        name: "Hunk 되돌리기",
         editorCheckCallback(checking, _, __) {
             if (checking) {
                 return (
@@ -504,7 +504,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "stage-hunk",
-        name: "Stage hunk",
+        name: "Hunk stage",
         editorCheckCallback: (checking, _, __) => {
             if (checking) {
                 return (
@@ -518,7 +518,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "preview-hunk",
-        name: "Preview hunk",
+        name: "Hunk 미리보기",
         editorCheckCallback: (checking, _, __) => {
             if (checking) {
                 return (
@@ -533,7 +533,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "next-hunk",
-        name: "Go to next hunk",
+        name: "다음 hunk로 이동",
         editorCheckCallback: (checking, _, __) => {
             if (checking) {
                 return (
@@ -547,7 +547,7 @@ export function addCommmands(plugin: ObsidianGit) {
 
     plugin.addCommand({
         id: "prev-hunk",
-        name: "Go to previous hunk",
+        name: "이전 hunk로 이동",
         editorCheckCallback: (checking, _, __) => {
             if (checking) {
                 return (

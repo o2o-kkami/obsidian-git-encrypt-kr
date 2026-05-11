@@ -45,26 +45,26 @@ export class DiscardModal extends Modal {
         let titlePart = "";
         if (this.path != "") {
             if (sum > 1) {
-                titlePart = `files in "${this.path}"`;
+                titlePart = `"${this.path}" 내 파일`;
             } else {
                 titlePart = `"${this.path}"`;
             }
         }
         titleEl.setText(
-            `${this.discardCount == 0 ? "Delete" : "Discard"} ${titlePart}`
+            `${this.discardCount == 0 ? "삭제" : "변경 버리기"} ${titlePart}`
         );
         if (this.deleteCount > 0) {
             contentEl
                 .createEl("p")
                 .setText(
-                    `Are you sure you want to DELETE the ${plural(this.deleteCount, "untracked file")}? They are deleted according to your Obsidian trash settting.`
+                    `미추적 파일 ${this.deleteCount}개를 정말 삭제하시겠습니까? 옵시디언의 휴지통 설정에 따라 삭제됩니다.`
                 );
         }
         if (this.discardCount > 0) {
             contentEl
                 .createEl("p")
                 .setText(
-                    `Are you sure you want to discard ALL changes in ${plural(this.discardCount, "tracked file")}?`
+                    `추적 중인 파일 ${this.discardCount}개의 변경사항을 모두 버리시겠습니까?`
                 );
         }
         const div = contentEl.createDiv({ cls: "modal-button-container" });
@@ -72,7 +72,7 @@ export class DiscardModal extends Modal {
         if (this.deleteCount > 0) {
             const discardAndDelete = div.createEl("button", {
                 cls: "mod-warning",
-                text: `${this.discardCount > 0 ? "Discard" : "Delete"} all ${plural(sum, "file")}`,
+                text: `${this.discardCount > 0 ? "모두 버리기" : "모두 삭제"} (${sum}개 파일)`,
             });
             discardAndDelete.addEventListener("click", () => {
                 if (this.resolve) this.resolve("delete");
@@ -87,7 +87,7 @@ export class DiscardModal extends Modal {
         if (this.discardCount > 0) {
             const discard = div.createEl("button", {
                 cls: "mod-warning",
-                text: `Discard all ${plural(this.discardCount, "tracked file")}`,
+                text: `추적 파일 ${this.discardCount}개 변경 버리기`,
             });
             discard.addEventListener("click", () => {
                 if (this.resolve) this.resolve("discard");
@@ -100,7 +100,7 @@ export class DiscardModal extends Modal {
         }
 
         const close = div.createEl("button", {
-            text: "Cancel",
+            text: "취소",
         });
         close.addEventListener("click", () => {
             if (this.resolve) this.resolve(false);

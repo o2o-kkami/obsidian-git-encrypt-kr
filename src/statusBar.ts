@@ -86,7 +86,7 @@ export class StatusBar {
         if (this.plugin.localStorage.getConflict()) {
             setIcon(this.conflictEl, "alert-circle");
             this.conflictEl.ariaLabel =
-                "You have merge conflicts. Resolve them and commit afterwards.";
+                "병합 충돌이 있습니다. 충돌을 해결한 뒤 커밋하세요.";
             this.conflictEl.style.marginRight = "5px";
             this.conflictEl.addClass(this.base + "conflict");
         } else {
@@ -97,7 +97,7 @@ export class StatusBar {
         if (this.plugin.localStorage.getPausedAutomatics()) {
             setIcon(this.pausedEl, "pause-circle");
             this.pausedEl.ariaLabel =
-                "Automatic routines are currently paused.";
+                "자동화가 현재 일시정지 상태입니다.";
             this.pausedEl.style.marginRight = "5px";
             this.pausedEl.addClass(this.base + "paused");
         } else {
@@ -110,32 +110,32 @@ export class StatusBar {
                 this.displayFromNow();
                 break;
             case CurrentGitAction.status:
-                this.statusBarEl.ariaLabel = "Checking repository status...";
+                this.statusBarEl.ariaLabel = "저장소 상태 확인 중...";
                 setIcon(this.iconEl, "refresh-cw");
                 this.statusBarEl.addClass(this.base + "status");
                 break;
             case CurrentGitAction.add:
-                this.statusBarEl.ariaLabel = "Adding files...";
+                this.statusBarEl.ariaLabel = "파일 추가 중...";
                 setIcon(this.iconEl, "archive");
                 this.statusBarEl.addClass(this.base + "add");
                 break;
             case CurrentGitAction.commit:
-                this.statusBarEl.ariaLabel = "Committing changes...";
+                this.statusBarEl.ariaLabel = "변경사항 커밋 중...";
                 setIcon(this.iconEl, "git-commit");
                 this.statusBarEl.addClass(this.base + "commit");
                 break;
             case CurrentGitAction.push:
-                this.statusBarEl.ariaLabel = "Pushing changes...";
+                this.statusBarEl.ariaLabel = "변경사항 push 중...";
                 setIcon(this.iconEl, "upload");
                 this.statusBarEl.addClass(this.base + "push");
                 break;
             case CurrentGitAction.pull:
-                this.statusBarEl.ariaLabel = "Pulling changes...";
+                this.statusBarEl.ariaLabel = "변경사항 pull 중...";
                 setIcon(this.iconEl, "download");
                 this.statusBarEl.addClass(this.base + "pull");
                 break;
             default:
-                this.statusBarEl.ariaLabel = "Failed on initialization!";
+                this.statusBarEl.ariaLabel = "초기화 실패!";
                 setIcon(this.iconEl, "alert-triangle");
                 this.statusBarEl.addClass(this.base + "failed-init");
                 break;
@@ -148,16 +148,16 @@ export class StatusBar {
         if (timestamp) {
             const fromNow = moment(timestamp).fromNow();
             this.statusBarEl.ariaLabel = `${
-                offlineMode ? "Offline: " : ""
-            }Last Commit: ${fromNow}`;
+                offlineMode ? "오프라인: " : ""
+            }마지막 커밋: ${fromNow}`;
 
             if ((this.unPushedCommits ?? 0) > 0) {
-                this.statusBarEl.ariaLabel += `\n(${this.unPushedCommits} unpushed commits)`;
+                this.statusBarEl.ariaLabel += `\n(${this.unPushedCommits}개 push 안 된 커밋)`;
             }
         } else {
             this.statusBarEl.ariaLabel = offlineMode
-                ? "Git is offline"
-                : "Git is ready";
+                ? "Git 오프라인"
+                : "Git 준비됨";
         }
 
         if (offlineMode) {

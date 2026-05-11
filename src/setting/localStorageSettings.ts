@@ -154,4 +154,27 @@ export class LocalStorageSettings {
             `${value}`
         );
     }
+
+    // ── Encryption ────────────────────────────────────────────────
+    // The encryption password lives only in this device's localStorage and
+    // is never written to the on-disk settings JSON (which is synced via
+    // the vault itself). Each device must supply its own password.
+
+    getEncryptionPassword(): string | null {
+        return this.app.loadLocalStorage(this.prefix + "encryptionPassword");
+    }
+
+    setEncryptionPassword(value: string): void {
+        return this.app.saveLocalStorage(
+            this.prefix + "encryptionPassword",
+            value
+        );
+    }
+
+    clearEncryptionPassword(): void {
+        return this.app.saveLocalStorage(
+            this.prefix + "encryptionPassword",
+            ""
+        );
+    }
 }

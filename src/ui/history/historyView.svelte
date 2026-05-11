@@ -107,7 +107,7 @@
                 id="layoutChange"
                 class="clickable-icon nav-action-button"
                 data-icon={showTree ? "list" : "folder"}
-                aria-label="Change Layout"
+                aria-label="레이아웃 전환"
                 bind:this={buttons[0]}
                 onclick={() => {
                     showTree = !showTree;
@@ -121,7 +121,7 @@
                 class="clickable-icon nav-action-button"
                 class:loading
                 data-icon="refresh-cw"
-                aria-label="Refresh"
+                aria-label="새로고침"
                 bind:this={buttons[1]}
                 onclick={triggerRefresh}
             ></div>

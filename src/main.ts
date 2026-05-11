@@ -63,6 +63,7 @@ import {
 import { DiscardModal, type DiscardResult } from "./ui/modals/discardModal";
 import { HunkActions } from "./editor/signs/hunkActions";
 import { EditorIntegration } from "./editor/editorIntegration";
+import { deriveKeys } from "./crypto/vaultCrypto";
 
 export default class ObsidianGit extends Plugin {
     gitManager: GitManager;
@@ -80,6 +81,14 @@ export default class ObsidianGit extends Plugin {
     lastPulledFiles: FileStatusResult[];
     gitReady = false;
     promiseQueue: PromiseQueue = new PromiseQueue(this);
+
+    /**
+     * Derived encryption keys, populated by {@link loadEncryptionKeys} when
+     * encryption is enabled and a password is available in localStorage.
+     * Undefined when encryption is off or the password hasn't been set on
+     * this device yet.
+     */
+    encryptionKeys: import("./crypto/vaultCrypto").VaultKeys | undefined;
 
     /**
      * Debouncer for the auto commit after file changes.
@@ -291,7 +300,7 @@ export default class ObsidianGit extends Plugin {
         });
         this.addRibbonIcon(
             "git-pull-request",
-            "Open Git source control",
+            "Git 소스 컨트롤 열기",
             async () => {
                 const leafs = this.app.workspace.getLeavesOfType(
                     SOURCE_CONTROL_VIEW_CONFIG.type
@@ -312,7 +321,7 @@ export default class ObsidianGit extends Plugin {
         );
 
         this.registerHoverLinkSource(SOURCE_CONTROL_VIEW_CONFIG.type, {
-            display: "Git View",
+            display: "Git 뷰",
             defaultMod: true,
         });
 
@@ -374,7 +383,7 @@ export default class ObsidianGit extends Plugin {
 
         if (source == "file-explorer-context-menu") {
             menu.addItem((item) => {
-                item.setTitle(`Git: Stage`)
+                item.setTitle(`Git: Stage (staging에 추가)`)
                     .setIcon("plus-circle")
                     .setSection("action")
                     .onClick((_) => {
@@ -396,7 +405,7 @@ export default class ObsidianGit extends Plugin {
                     });
             });
             menu.addItem((item) => {
-                item.setTitle(`Git: Unstage`)
+                item.setTitle(`Git: Unstage (staging에서 제거)`)
                     .setIcon("minus-circle")
                     .setSection("action")
                     .onClick((_) => {
@@ -419,7 +428,7 @@ export default class ObsidianGit extends Plugin {
                     });
             });
             menu.addItem((item) => {
-                item.setTitle(`Git: Add to .gitignore`)
+                item.setTitle(`Git: .gitignore에 추가`)
                     .setIcon("file-x")
                     .setSection("action")
                     .onClick((_) => {
@@ -433,7 +442,7 @@ export default class ObsidianGit extends Plugin {
 
         if (source == "git-source-control") {
             menu.addItem((item) => {
-                item.setTitle(`Git: Add to .gitignore`)
+                item.setTitle(`Git: .gitignore에 추가`)
                     .setIcon("file-x")
                     .setSection("action")
                     .onClick((_) => {
@@ -449,7 +458,7 @@ export default class ObsidianGit extends Plugin {
                 gitManager instanceof FileSystemAdapter
             ) {
                 menu.addItem((item) => {
-                    item.setTitle("Open in default app")
+                    item.setTitle("기본 앱으로 열기")
                         .setIcon("arrow-up-right")
                         .setSection("action")
                         .onClick((_) => {
@@ -457,7 +466,7 @@ export default class ObsidianGit extends Plugin {
                         });
                 });
                 menu.addItem((item) => {
-                    item.setTitle("Show in system explorer")
+                    item.setTitle("탐색기에서 보기")
                         .setIcon("arrow-up-right")
                         .setSection("action")
                         .onClick((_) => {
@@ -540,6 +549,64 @@ export default class ObsidianGit extends Plugin {
         return Platform.isDesktopApp;
     }
 
+    /**
+     * True when encryption is enabled in settings but no usable keys are
+     * loaded (no password set on this device). In this state every git
+     * operation MUST be blocked — otherwise plaintext would be pushed or
+     * encrypted-looking bytes would be written into the vault unchanged.
+     */
+    isEncryptionLocked(): boolean {
+        return (
+            this.settings.encryption.enabled && this.encryptionKeys === undefined
+        );
+    }
+
+    /** Show the standard locked-state notice. Returns true (for use in
+     *  guard expressions like `if (locked) { notify(); return false; }`). */
+    private notifyEncryptionLocked(): true {
+        new Notice(
+            "🔒 암호화 비밀번호가 입력되지 않았습니다. 설정에서 비밀번호를 입력해야 동기화가 동작합니다.",
+            10000
+        );
+        return true;
+    }
+
+    /** Single-point guard for sync operations. Returns true if blocked. */
+    blockIfEncryptionLocked(): boolean {
+        if (this.isEncryptionLocked()) {
+            this.notifyEncryptionLocked();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Populate {@link encryptionKeys} from the password in localStorage.
+     * Must be called before constructing IsomorphicGit so the
+     * EncryptedAdapter has keys ready.
+     *
+     * No cross-device state is needed — the salt is a fixed plugin
+     * constant (see vaultCrypto.ts), so identical password input on every
+     * device deterministically yields the same keys.
+     */
+    async loadEncryptionKeys(): Promise<void> {
+        if (!this.settings.encryption.enabled) {
+            this.encryptionKeys = undefined;
+            return;
+        }
+        const password = this.localStorage.getEncryptionPassword();
+        if (!password) {
+            this.encryptionKeys = undefined;
+            return;
+        }
+        try {
+            this.encryptionKeys = await deriveKeys(password);
+        } catch (e) {
+            console.error("암호화 키 derive 실패:", e);
+            this.encryptionKeys = undefined;
+        }
+    }
+
     async init({ fromReload = false }): Promise<void> {
         if (this.settings.showStatusBar && !this.statusBar) {
             const statusBarEl = this.addStatusBarItem();
@@ -549,8 +616,14 @@ export default class ObsidianGit extends Plugin {
             );
         }
 
+        // Load encryption keys before constructing the git manager so the
+        // adapter has them at instantiation time. Encryption requires
+        // isomorphic-git (simple-git bypasses the adapter entirely).
+        await this.loadEncryptionKeys();
+        const encryptionForcesIsomorphic = this.settings.encryption.enabled;
+
         try {
-            if (this.useSimpleGit) {
+            if (this.useSimpleGit && !encryptionForcesIsomorphic) {
                 this.gitManager = new SimpleGit(this);
                 await (this.gitManager as SimpleGit).setGitInstance();
             } else {
@@ -562,12 +635,12 @@ export default class ObsidianGit extends Plugin {
             switch (result) {
                 case "missing-git":
                     this.displayError(
-                        `Cannot run git command. Trying to run: '${this.localStorage.getGitPath() || "git"}' .`
+                        `git 명령을 실행할 수 없습니다. 시도한 경로: '${this.localStorage.getGitPath() || "git"}'`
                     );
                     break;
                 case "missing-repo":
                     new Notice(
-                        "Can't find a valid git repository. Please create one via the given command or clone an existing repo.",
+                        "유효한 git 저장소를 찾을 수 없습니다. 커맨드로 새 저장소를 만들거나 기존 저장소를 clone하세요.",
                         10000
                     );
                     break;
@@ -603,28 +676,45 @@ export default class ObsidianGit extends Plugin {
                     /// Among other things, this notifies the history view that git is ready
                     this.app.workspace.trigger("obsidian-git:head-change");
 
+                    // SAFETY: if encryption is enabled but the password
+                    // hasn't been set on this device, do NOT start any sync
+                    // routines — they would push plaintext or write
+                    // un-decrypted bytes into the vault.
+                    const locked = this.isEncryptionLocked();
+
                     if (
                         !fromReload &&
                         this.settings.autoPullOnBoot &&
-                        !pausedAutomatics
+                        !pausedAutomatics &&
+                        !locked
                     ) {
                         this.promiseQueue.addTask(() =>
                             this.pullChangesFromRemote()
                         );
                     }
 
-                    if (!pausedAutomatics) {
+                    if (!pausedAutomatics && !locked) {
                         await this.automaticsManager.init();
+                    } else {
+                        // Tear down any previously-running automatics so
+                        // they cannot keep firing after entering the
+                        // paused/locked state mid-session.
+                        this.automaticsManager.unload();
                     }
 
                     if (pausedAutomatics) {
-                        new Notice("Automatic routines are currently paused.");
+                        new Notice("자동화가 현재 일시정지 상태입니다.");
+                    } else if (locked) {
+                        new Notice(
+                            "🔒 암호화가 활성화되어 있지만 비밀번호가 입력되지 않았습니다. 설정에서 비밀번호를 입력하면 동기화가 자동 시작됩니다.",
+                            10000
+                        );
                     }
 
                     break;
                 default:
                     this.log(
-                        "Something weird happened. The 'checkRequirements' result is " +
+                        "예상치 못한 상황. 'checkRequirements' 결과: " +
                             /* eslint-disable-next-line @typescript-eslint/restrict-plus-operands */
                             result
                     );
@@ -638,7 +728,7 @@ export default class ObsidianGit extends Plugin {
     async createNewRepo() {
         try {
             await this.gitManager.init();
-            new Notice("Initialized new repo");
+            new Notice("새 저장소를 초기화했습니다.");
             await this.init({ fromReload: true });
         } catch (e) {
             this.displayError(e);
@@ -646,19 +736,20 @@ export default class ObsidianGit extends Plugin {
     }
 
     async cloneNewRepo() {
+        if (this.blockIfEncryptionLocked()) return;
         const modal = new GeneralModal(this, {
-            placeholder: "Enter remote URL",
+            placeholder: "원격 URL 입력",
         });
         const url = await modal.openAndGetResult();
         if (url) {
-            const confirmOption = "Vault Root";
+            const confirmOption = "Vault 루트";
             let dir = await new GeneralModal(this, {
                 options:
                     this.gitManager instanceof IsomorphicGit
                         ? [confirmOption]
                         : [],
                 placeholder:
-                    "Enter directory for clone. It needs to be empty or not existent.",
+                    "clone할 디렉토리를 입력하세요. 비어있거나 존재하지 않는 디렉토리여야 합니다.",
                 allowEmpty: this.gitManager instanceof IsomorphicGit,
             }).openAndGetResult();
             if (dir == undefined) return;
@@ -673,20 +764,20 @@ export default class ObsidianGit extends Plugin {
 
             if (dir === ".") {
                 const modal = new GeneralModal(this, {
-                    options: ["NO", "YES"],
-                    placeholder: `Does your remote repo contain a ${this.app.vault.configDir} directory at the root?`,
+                    options: ["아니오", "예"],
+                    placeholder: `원격 저장소 루트에 ${this.app.vault.configDir} 디렉토리가 있습니까?`,
                     onlySelection: true,
                 });
                 const containsConflictDir = await modal.openAndGetResult();
                 if (containsConflictDir === undefined) {
-                    new Notice("Aborted clone");
+                    new Notice("Clone이 중단되었습니다.");
                     return;
-                } else if (containsConflictDir === "YES") {
+                } else if (containsConflictDir === "예") {
                     const confirmOption =
-                        "DELETE ALL YOUR LOCAL CONFIG AND PLUGINS";
+                        "로컬 설정과 플러그인을 모두 삭제";
                     const modal = new GeneralModal(this, {
-                        options: ["Abort clone", confirmOption],
-                        placeholder: `To avoid conflicts, the local ${this.app.vault.configDir} directory needs to be deleted.`,
+                        options: ["Clone 중단", confirmOption],
+                        placeholder: `충돌 방지를 위해 로컬 ${this.app.vault.configDir} 디렉토리를 삭제해야 합니다.`,
                         onlySelection: true,
                     });
                     const shouldDelete =
@@ -697,30 +788,30 @@ export default class ObsidianGit extends Plugin {
                             true
                         );
                     } else {
-                        new Notice("Aborted clone");
+                        new Notice("Clone이 중단되었습니다.");
                         return;
                     }
                 }
             }
             const depth = await new GeneralModal(this, {
                 placeholder:
-                    "Specify depth of clone. Leave empty for full clone.",
+                    "clone 깊이(depth)를 입력하세요. 비워두면 전체 clone.",
                 allowEmpty: true,
             }).openAndGetResult();
             let depthInt = undefined;
             if (depth === undefined) {
-                new Notice("Aborted clone");
+                new Notice("Clone이 중단되었습니다.");
                 return;
             }
 
             if (depth !== "") {
                 depthInt = parseInt(depth);
                 if (isNaN(depthInt)) {
-                    new Notice("Invalid depth. Aborting clone.");
+                    new Notice("유효하지 않은 depth 값. clone을 중단합니다.");
                     return;
                 }
             }
-            new Notice(`Cloning new repo into "${dir}"`);
+            new Notice(`"${dir}" 위치로 새 저장소를 clone합니다.`);
             const oldBase = this.settings.basePath;
             const customDir = dir && dir !== ".";
             //Set new base path before clone to ensure proper .git/index file location in isomorphic-git
@@ -733,8 +824,8 @@ export default class ObsidianGit extends Plugin {
                     dir,
                     depthInt
                 );
-                new Notice("Cloned new repo.");
-                new Notice("Please restart Obsidian");
+                new Notice("저장소 clone 완료.");
+                new Notice("옵시디언을 재시작해 주세요.");
 
                 if (customDir) {
                     await this.saveSettings();
@@ -761,22 +852,21 @@ export default class ObsidianGit extends Plugin {
     ///Used for command
     async pullChangesFromRemote(): Promise<void> {
         if (!(await this.isAllInitialized())) return;
+        if (this.blockIfEncryptionLocked()) return;
 
         const filesUpdated = await this.pull();
         if (filesUpdated === false) {
             return;
         }
         if (!filesUpdated) {
-            this.displayMessage("Pull: Everything is up-to-date");
+            this.displayMessage("Pull: 모두 최신 상태입니다.");
         }
 
         if (this.gitManager instanceof SimpleGit) {
             const status = await this.updateCachedStatus();
             if (status.conflicted.length > 0) {
                 this.displayError(
-                    `You have conflicts in ${status.conflicted.length} ${
-                        status.conflicted.length == 1 ? "file" : "files"
-                    }`
+                    `${status.conflicted.length}개 파일에 충돌이 있습니다.`
                 );
                 await this.handleConflict(status.conflicted);
             }
@@ -798,6 +888,7 @@ export default class ObsidianGit extends Plugin {
         onlyStaged?: boolean;
     }): Promise<void> {
         if (!(await this.isAllInitialized())) return;
+        if (this.blockIfEncryptionLocked()) return;
 
         if (
             this.settings.syncMethod == "reset" &&
@@ -831,7 +922,7 @@ export default class ObsidianGit extends Plugin {
             ) {
                 await this.push();
             } else {
-                this.displayMessage("No commits to push");
+                this.displayMessage("Push할 커밋이 없습니다.");
             }
         }
         this.setPluginState({ gitAction: CurrentGitAction.idle });
@@ -852,6 +943,7 @@ export default class ObsidianGit extends Plugin {
         amend?: boolean;
     }): Promise<boolean> {
         if (!(await this.isAllInitialized())) return false;
+        if (this.blockIfEncryptionLocked()) return false;
         try {
             let hadConflict = this.localStorage.getConflict();
 
@@ -871,11 +963,7 @@ export default class ObsidianGit extends Plugin {
                 // check for conflict files on auto backup
                 if (fromAuto && status.conflicted.length > 0) {
                     this.displayError(
-                        `Did not commit, because you have conflicts in ${
-                            status.conflicted.length
-                        } ${
-                            status.conflicted.length == 1 ? "file" : "files"
-                        }. Please resolve them and commit per command.`
+                        `${status.conflicted.length}개 파일에 충돌이 있어 커밋하지 않았습니다. 충돌을 해결한 뒤 커맨드로 직접 커밋하세요.`
                     );
                     await this.handleConflict(status.conflicted);
                     return false;
@@ -895,7 +983,7 @@ export default class ObsidianGit extends Plugin {
                     //
                     // Conflicts should only be resolved by manually committing.
                     this.displayError(
-                        `Did not commit, because you have conflicts. Please resolve them and commit per command.`
+                        `충돌이 있어 커밋하지 않았습니다. 충돌을 해결한 뒤 커맨드로 직접 커밋하세요.`
                     );
                     return false;
                 } else {
@@ -945,7 +1033,7 @@ export default class ObsidianGit extends Plugin {
                 ) {
                     if (!this.settings.disablePopups && fromAuto) {
                         new Notice(
-                            "Auto backup: Please enter a custom commit message. Leave empty to abort"
+                            "자동 백업: 커밋 메시지를 입력하세요. 비워두면 중단됩니다."
                         );
                     }
                     const modalMessage = await new CustomMessageModal(
@@ -998,7 +1086,7 @@ export default class ObsidianGit extends Plugin {
 
                         if (!shExists) {
                             this.displayError(
-                                `Cannot find sh.exe at ${shPath}. Please make sure Git is properly installed.`
+                                `${shPath} 경로에서 sh.exe를 찾을 수 없습니다. git이 올바르게 설치되었는지 확인하세요.`
                             );
                             return false;
                         }
@@ -1013,7 +1101,7 @@ export default class ObsidianGit extends Plugin {
                         this.displayError(res.stderr);
                     } else if (res.stdout.trim().length == 0) {
                         this.displayMessage(
-                            "Stdout from commit message script is empty. Using default message."
+                            "커밋 메시지 스크립트의 출력이 비어있습니다. 기본 메시지를 사용합니다."
                         );
                     } else {
                         cmtMessage = res.stdout;
@@ -1022,7 +1110,7 @@ export default class ObsidianGit extends Plugin {
 
                 // Check if commit message is empty after all processing
                 if (!cmtMessage || cmtMessage.trim() === "") {
-                    new Notice("Commit aborted: No commit message provided");
+                    new Notice("커밋 중단: 커밋 메시지가 입력되지 않았습니다.");
                     this.setPluginState({
                         gitAction: CurrentGitAction.idle,
                     });
@@ -1056,12 +1144,10 @@ export default class ObsidianGit extends Plugin {
                         unstagedFiles.length + stagedFiles.length || 0;
                 }
                 this.displayMessage(
-                    `Committed${roughly ? " approx." : ""} ${committedFiles} ${
-                        committedFiles == 1 ? "file" : "files"
-                    }`
+                    `${roughly ? "약 " : ""}${committedFiles}개 파일을 커밋했습니다.`
                 );
             } else {
-                this.displayMessage("No changes to commit");
+                this.displayMessage("커밋할 변경사항이 없습니다.");
             }
             this.app.workspace.trigger("obsidian-git:refresh");
 
@@ -1077,6 +1163,7 @@ export default class ObsidianGit extends Plugin {
      */
     async push(): Promise<boolean> {
         if (!(await this.isAllInitialized())) return false;
+        if (this.blockIfEncryptionLocked()) return false;
         if (!(await this.remotesAreSet())) {
             return false;
         }
@@ -1092,9 +1179,7 @@ export default class ObsidianGit extends Plugin {
                 (status = await this.updateCachedStatus()).conflicted.length > 0
             ) {
                 this.displayError(
-                    `Cannot push. You have conflicts in ${
-                        status.conflicted.length
-                    } ${status.conflicted.length == 1 ? "file" : "files"}`
+                    `Push 불가: ${status.conflicted.length}개 파일에 충돌이 있습니다.`
                 );
                 await this.handleConflict(status.conflicted);
                 return false;
@@ -1102,7 +1187,7 @@ export default class ObsidianGit extends Plugin {
                 this.gitManager instanceof IsomorphicGit &&
                 hadConflict
             ) {
-                this.displayError(`Cannot push. You have conflicts`);
+                this.displayError(`Push 불가: 충돌이 있습니다.`);
                 return false;
             }
             this.log("Pushing....");
@@ -1110,15 +1195,13 @@ export default class ObsidianGit extends Plugin {
 
             if (pushedFiles !== undefined) {
                 if (pushedFiles === null) {
-                    this.displayMessage(`Pushed to remote`);
+                    this.displayMessage(`원격으로 push 완료.`);
                 } else if (pushedFiles > 0) {
                     this.displayMessage(
-                        `Pushed ${pushedFiles} ${
-                            pushedFiles == 1 ? "file" : "files"
-                        } to remote`
+                        `${pushedFiles}개 파일을 원격으로 push했습니다.`
                     );
                 } else {
-                    this.displayMessage(`No commits to push`);
+                    this.displayMessage(`Push할 커밋이 없습니다.`);
                 }
             }
             this.setPluginState({ offlineMode: false });
@@ -1140,6 +1223,7 @@ export default class ObsidianGit extends Plugin {
      *  See {@link pullChangesFromRemote} for the command version.
      */
     async pull(): Promise<false | number> {
+        if (this.blockIfEncryptionLocked()) return false;
         if (!(await this.remotesAreSet())) {
             return false;
         }
@@ -1150,9 +1234,7 @@ export default class ObsidianGit extends Plugin {
 
             if (pulledFiles.length > 0) {
                 this.displayMessage(
-                    `Pulled ${pulledFiles.length} ${
-                        pulledFiles.length == 1 ? "file" : "files"
-                    } from remote`
+                    `원격에서 ${pulledFiles.length}개 파일을 pull했습니다.`
                 );
                 this.lastPulledFiles = pulledFiles;
             }
@@ -1165,13 +1247,14 @@ export default class ObsidianGit extends Plugin {
     }
 
     async fetch(): Promise<void> {
+        if (this.blockIfEncryptionLocked()) return;
         if (!(await this.remotesAreSet())) {
             return;
         }
         try {
             await this.gitManager.fetch();
 
-            this.displayMessage(`Fetched from remote`);
+            this.displayMessage(`원격에서 fetch 완료.`);
             this.setPluginState({ offlineMode: false });
             this.app.workspace.trigger("obsidian-git:refresh");
         } catch (error) {
@@ -1227,7 +1310,7 @@ export default class ObsidianGit extends Plugin {
 
         if (selectedBranch != undefined) {
             await this.gitManager.checkout(selectedBranch);
-            this.displayMessage(`Switched to ${selectedBranch}`);
+            this.displayMessage(`${selectedBranch} 브랜치로 전환했습니다.`);
             this.app.workspace.trigger("obsidian-git:refresh");
             await this.branchBar?.display();
             return selectedBranch;
@@ -1243,7 +1326,7 @@ export default class ObsidianGit extends Plugin {
 
         if (branch != undefined && remote != undefined) {
             await this.gitManager.checkout(branch, remote);
-            this.displayMessage(`Switched to ${selectedBranch}`);
+            this.displayMessage(`${selectedBranch} 브랜치로 전환했습니다.`);
             await this.branchBar?.display();
             return selectedBranch;
         }
@@ -1253,11 +1336,11 @@ export default class ObsidianGit extends Plugin {
         if (!(await this.isAllInitialized())) return;
 
         const newBranch = await new GeneralModal(this, {
-            placeholder: "Create new branch",
+            placeholder: "새 브랜치 만들기",
         }).openAndGetResult();
         if (newBranch != undefined) {
             await this.gitManager.createBranch(newBranch);
-            this.displayMessage(`Created new branch ${newBranch}`);
+            this.displayMessage(`새 브랜치 ${newBranch}를 생성했습니다.`);
             await this.branchBar?.display();
             return newBranch;
         }
@@ -1270,7 +1353,7 @@ export default class ObsidianGit extends Plugin {
         if (branchInfo.current) branchInfo.branches.remove(branchInfo.current);
         const branch = await new GeneralModal(this, {
             options: branchInfo.branches,
-            placeholder: "Delete branch",
+            placeholder: "브랜치 삭제",
             onlySelection: true,
         }).openAndGetResult();
         if (branch != undefined) {
@@ -1279,18 +1362,18 @@ export default class ObsidianGit extends Plugin {
             // Using await inside IF throws exception
             if (!merged) {
                 const forceAnswer = await new GeneralModal(this, {
-                    options: ["YES", "NO"],
+                    options: ["예", "아니오"],
                     placeholder:
-                        "This branch isn't merged into HEAD. Force delete?",
+                        "이 브랜치는 HEAD에 머지되지 않았습니다. 강제 삭제하시겠습니까?",
                     onlySelection: true,
                 }).openAndGetResult();
-                if (forceAnswer !== "YES") {
+                if (forceAnswer !== "예") {
                     return;
                 }
-                force = forceAnswer === "YES";
+                force = forceAnswer === "예";
             }
             await this.gitManager.deleteBranch(branch, force);
-            this.displayMessage(`Deleted branch ${branch}`);
+            this.displayMessage(`${branch} 브랜치를 삭제했습니다.`);
             await this.branchBar?.display();
             return branch;
         }
@@ -1315,7 +1398,7 @@ export default class ObsidianGit extends Plugin {
             return true;
         }
         if (!(await this.gitManager.branchInfo()).tracking) {
-            new Notice("No upstream branch is set. Please select one.");
+            new Notice("Upstream 브랜치가 설정되지 않았습니다. 선택해 주세요.");
             return await this.setUpstreamBranch();
         }
         return true;
@@ -1325,12 +1408,12 @@ export default class ObsidianGit extends Plugin {
         const remoteBranch = await this.selectRemoteBranch();
 
         if (remoteBranch == undefined) {
-            this.displayError("Aborted. No upstream-branch is set!", 10000);
+            this.displayError("중단되었습니다. Upstream 브랜치가 설정되지 않았습니다.", 10000);
             this.setPluginState({ gitAction: CurrentGitAction.idle });
             return false;
         } else {
             await this.gitManager.updateUpstreamBranch(remoteBranch);
-            this.displayMessage(`Set upstream branch to ${remoteBranch}`);
+            this.displayMessage(`Upstream 브랜치를 ${remoteBranch}로 설정했습니다.`);
             this.setPluginState({ gitAction: CurrentGitAction.idle });
             return true;
         }
@@ -1409,10 +1492,10 @@ export default class ObsidianGit extends Plugin {
         let lines: string[] | undefined;
         if (conflicted !== undefined) {
             lines = [
-                "# Conflicts",
-                "Please resolve them and commit them using the commands `Git: Commit all changes` followed by `Git: Push`",
-                "(This file will automatically be deleted before commit)",
-                "[[#Additional Instructions]] available below file list",
+                "# 충돌 발생",
+                "충돌을 해결한 뒤 `Git: 모든 변경 커밋` 커맨드 다음 `Git: Push` 커맨드로 커밋하세요.",
+                "(이 파일은 커밋 직전에 자동으로 삭제됩니다)",
+                "[[#추가 안내]]는 파일 목록 아래에 있습니다.",
                 "",
                 ...conflicted.map((e) => {
                     const file = this.app.vault.getAbstractFileByPath(e);
@@ -1423,18 +1506,18 @@ export default class ObsidianGit extends Plugin {
                         );
                         return `- [[${link}]]`;
                     } else {
-                        return `- Not a file: ${e}`;
+                        return `- 파일이 아님: ${e}`;
                     }
                 }),
                 `
-# Additional Instructions
-I strongly recommend to use "Source mode" for viewing the conflicted files. For simple conflicts, in each file listed above replace every occurrence of the following text blocks with the desired text.
+# 추가 안내
+충돌 파일은 "소스 모드"로 보는 것을 강력히 권장합니다. 단순 충돌의 경우 각 파일 안의 아래 텍스트 블록을 원하는 내용으로 교체하세요.
 
 \`\`\`diff
 <<<<<<< HEAD
-    File changes in local repository
+    로컬 저장소의 변경사항
 =======
-    File changes in remote repository
+    원격 저장소의 변경사항
 >>>>>>> origin/main
 \`\`\``,
             ];
@@ -1450,7 +1533,7 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
         const nameModal = new GeneralModal(this, {
             options: remotes,
             placeholder:
-                "Select or create a new remote by typing its name and selecting it",
+                "원격 이름을 선택하거나 새 이름을 입력해서 만드세요",
         });
         const remoteName = await nameModal.openAndGetResult();
 
@@ -1459,7 +1542,7 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
 
             const urlModal = new GeneralModal(this, {
                 initialValue: oldUrl,
-                placeholder: "Enter remote URL",
+                placeholder: "원격 URL 입력",
             });
             // urlModal.inputEl.setText(oldUrl ?? "");
             const remoteURL = await urlModal.openAndGetResult();
@@ -1486,20 +1569,20 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
         const nameModal = new GeneralModal(this, {
             options: remotes,
             placeholder:
-                "Select or create a new remote by typing its name and selecting it",
+                "원격 이름을 선택하거나 새 이름을 입력해서 만드세요",
         });
         const remoteName =
             selectedRemote ?? (await nameModal.openAndGetResult());
 
         if (remoteName) {
-            this.displayMessage("Fetching remote branches");
+            this.displayMessage("원격 브랜치 가져오는 중...");
             await this.gitManager.fetch(remoteName);
             const branches =
                 await this.gitManager.getRemoteBranches(remoteName);
             const branchModal = new GeneralModal(this, {
                 options: branches,
                 placeholder:
-                    "Select or create a new remote branch by typing its name and selecting it",
+                    "원격 브랜치를 선택하거나 새 브랜치 이름을 입력해서 만드세요",
             });
             const branch = await branchModal.openAndGetResult();
             if (branch == undefined) return;
@@ -1518,7 +1601,7 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
 
         const nameModal = new GeneralModal(this, {
             options: remotes,
-            placeholder: "Select a remote",
+            placeholder: "원격 선택",
         });
         const remoteName = await nameModal.openAndGetResult();
 
@@ -1581,11 +1664,11 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
     handleNoNetworkError(_: NoNetworkError): void {
         if (!this.state.offlineMode) {
             this.displayError(
-                "Git: Going into offline mode. Future network errors will no longer be displayed.",
+                "Git: 오프라인 모드로 전환합니다. 이후의 네트워크 오류는 표시되지 않습니다.",
                 2000
             );
         } else {
-            this.log("Encountered network error, but already in offline mode");
+            this.log("네트워크 오류 발생, 이미 오프라인 모드입니다");
         }
         this.setPluginState({
             gitAction: CurrentGitAction.idle,
@@ -1600,6 +1683,7 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
         if (!this.settings.disablePopups) {
             if (
                 !this.settings.disablePopupsForNoChanges ||
+                !message.startsWith("커밋할 변경사항이 없습니다") &&
                 !message.startsWith("No changes")
             ) {
                 new Notice(message, 5 * 1000);
@@ -1611,7 +1695,7 @@ I strongly recommend to use "Source mode" for viewing the conflicted files. For 
 
     displayError(data: unknown, timeout: number = 10 * 1000): void {
         if (data instanceof Errors.UserCanceledError) {
-            new Notice("Aborted");
+            new Notice("중단되었습니다.");
             return;
         }
         let error: Error;

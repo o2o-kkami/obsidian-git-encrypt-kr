@@ -55,7 +55,7 @@ export class SimpleGit extends GitManager {
                         this.plugin.settings.basePath
                     );
                 } else if (!ignoreError) {
-                    new Notice("ObsidianGit: Base path does not exist");
+                    new Notice("ObsidianGit: 기본 경로(base path)가 존재하지 않습니다.");
                 }
             }
             this.absoluteRepoPath = basePath;
@@ -691,7 +691,7 @@ export class SimpleGit extends GitManager {
                     } catch (err) {
                         this.plugin.displayError(
                             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                            `Pull failed (${this.plugin.settings.syncMethod}): ${"message" in err ? err.message : err}`
+                            `Pull 실패 (${this.plugin.settings.syncMethod}): ${"message" in err ? err.message : err}`
                         );
                         return;
                     }
@@ -706,7 +706,7 @@ export class SimpleGit extends GitManager {
                     } catch (err) {
                         this.plugin.displayError(
                             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                            `Sync failed (${this.plugin.settings.syncMethod}): ${"message" in err ? err.message : err}`
+                            `동기화 실패 (${this.plugin.settings.syncMethod}): ${"message" in err ? err.message : err}`
                         );
                     }
                 }

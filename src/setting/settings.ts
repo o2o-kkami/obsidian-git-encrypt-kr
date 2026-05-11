@@ -1,5 +1,6 @@
 import type { App, RGB, TextComponent } from "obsidian";
 import {
+    debounce,
     moment,
     Notice,
     Platform,
@@ -9,6 +10,7 @@ import {
 } from "obsidian";
 import {
     DATE_TIME_FORMAT_SECONDS,
+    DEFAULT_GITIGNORE,
     DEFAULT_SETTINGS,
     GIT_LINE_AUTHORING_MOVEMENT_DETECTION_MINIMAL_LENGTH,
 } from "src/constants";
@@ -57,28 +59,36 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         let commitOrSync: string;
         if (plugin.settings.differentIntervalCommitAndPush) {
-            commitOrSync = "commit";
+            commitOrSync = "커밋";
         } else {
-            commitOrSync = "commit-and-sync";
+            commitOrSync = "커밋 & 동기화";
         }
 
         const gitReady = plugin.gitReady;
 
         containerEl.empty();
+
+        // Encryption section is FIRST: if a user enables encryption on a
+        // new vault and then keeps scrolling down to configure auto-pull/
+        // auto-push intervals, sync would start before the password is
+        // entered. Putting it at the top + the lock guard in main.ts work
+        // together to make this safe by construction.
+        this.addEncryptionSection(this.containerEl);
+
         if (!gitReady) {
             containerEl.createEl("p", {
-                text: "Git is not ready. When all settings are correct you can configure commit-sync, etc.",
+                text: "Git이 아직 준비되지 않았습니다. 모든 설정을 올바르게 맞추면 커밋·동기화 등을 구성할 수 있습니다.",
             });
             containerEl.createEl("br");
         }
 
         let setting: Setting;
         if (gitReady) {
-            new Setting(containerEl).setName("Automatic").setHeading();
+            new Setting(containerEl).setName("자동화").setHeading();
             new Setting(containerEl)
-                .setName("Split timers for automatic commit and sync")
+                .setName("커밋과 동기화에 별도의 타이머 사용")
                 .setDesc(
-                    "Enable to use one interval for commit and another for sync."
+                    "활성화하면 커밋 간격과 동기화 간격을 따로 설정할 수 있습니다."
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -95,13 +105,13 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             new Setting(containerEl)
-                .setName(`Auto ${commitOrSync} interval (minutes)`)
+                .setName(`자동 ${commitOrSync} 간격 (분)`)
                 .setDesc(
                     `${
                         plugin.settings.differentIntervalCommitAndPush
-                            ? "Commit"
-                            : "Commit and sync"
-                    } changes every X minutes. Set to 0 (default) to disable. (See below setting for further configuration!)`
+                            ? "커밋"
+                            : "커밋 & 동기화"
+                    }을 X분마다 수행합니다. 0 (기본값)으로 설정하면 비활성화됩니다. (자세한 설정은 아래 항목 참조!)`
                 )
                 .addText((text) => {
                     text.inputEl.type = "number";
@@ -125,13 +135,13 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
             setting = new Setting(containerEl)
-                .setName(`Auto ${commitOrSync} after stopping file edits`)
+                .setName(`파일 편집 멈춘 뒤 자동 ${commitOrSync}`)
                 .setDesc(
-                    `Requires the ${commitOrSync} interval not to be 0.
-                        If turned on, do auto ${commitOrSync} every ${formatMinutes(
+                    `${commitOrSync} 간격이 0이 아니어야 합니다.
+                        활성화하면 파일 편집을 멈춘 뒤 ${formatMinutes(
                             plugin.settings.autoSaveInterval
-                        )} after stopping file edits.
-                        This also prevents auto ${commitOrSync} while editing a file. If turned off, it's independent from the last file edit.`
+                        )}마다 자동 ${commitOrSync}을 실행합니다.
+                        편집 중에는 자동 ${commitOrSync}이 실행되지 않습니다. 비활성화하면 마지막 편집 시점과 무관하게 동작합니다.`
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -150,9 +160,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
             setting = new Setting(containerEl)
-                .setName(`Auto ${commitOrSync} after latest commit`)
+                .setName(`최근 커밋 기준으로 자동 ${commitOrSync} 시각 갱신`)
                 .setDesc(
-                    `If turned on, sets last auto ${commitOrSync} timestamp to the latest commit timestamp. This reduces the frequency of auto ${commitOrSync} when doing manual commits.`
+                    `활성화하면 자동 ${commitOrSync}의 기준 시각을 최근 커밋 시각으로 설정합니다. 수동 커밋을 자주 할 때 자동 ${commitOrSync} 빈도를 줄여줍니다.`
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -170,9 +180,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
             setting = new Setting(containerEl)
-                .setName(`Auto push interval (minutes)`)
+                .setName(`자동 push 간격 (분)`)
                 .setDesc(
-                    "Push commits every X minutes. Set to 0 (default) to disable."
+                    "X분마다 커밋을 push합니다. 0 (기본값)으로 설정하면 비활성화됩니다."
                 )
                 .addText((text) => {
                     text.inputEl.type = "number";
@@ -200,9 +210,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
             new Setting(containerEl)
-                .setName("Auto pull interval (minutes)")
+                .setName("자동 pull 간격 (분)")
                 .setDesc(
-                    "Pull changes every X minutes. Set to 0 (default) to disable."
+                    "X분마다 변경사항을 pull합니다. 0 (기본값)으로 설정하면 비활성화됩니다."
                 )
                 .addText((text) => {
                     text.inputEl.type = "number";
@@ -226,9 +236,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
             new Setting(containerEl)
-                .setName(`Auto ${commitOrSync} only staged files`)
+                .setName(`자동 ${commitOrSync} 시 staged 파일만 커밋`)
                 .setDesc(
-                    `If turned on, only staged files are committed on ${commitOrSync}. If turned off, all changed files are committed.`
+                    `활성화하면 ${commitOrSync} 시 staged된 파일만 커밋합니다. 비활성화하면 변경된 모든 파일을 커밋합니다.`
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -241,9 +251,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
             new Setting(containerEl)
                 .setName(
-                    `Specify custom commit message on auto ${commitOrSync}`
+                    `자동 ${commitOrSync} 시 커밋 메시지 직접 입력`
                 )
-                .setDesc("You will get a pop up to specify your message.")
+                .setDesc("매번 메시지를 입력하라는 팝업이 나타납니다.")
                 .addToggle((toggle) =>
                     toggle
                         .setValue(plugin.settings.customMessageOnAutoBackup)
@@ -255,10 +265,10 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             setting = new Setting(containerEl)
-                .setName(`Commit message on auto ${commitOrSync}`)
+                .setName(`자동 ${commitOrSync} 커밋 메시지`)
                 .setDesc(
-                    "Available placeholders: {{date}}" +
-                        " (see below), {{hostname}} (see below), {{numFiles}} (number of changed files in the commit) and {{files}} (changed files in commit message)."
+                    "사용 가능한 placeholder: {{date}}" +
+                        " (아래 참조), {{hostname}} (아래 참조), {{numFiles}} (커밋된 변경 파일 수), {{files}} (커밋된 변경 파일 목록)."
                 )
                 .addTextArea((text) => {
                     text.setPlaceholder(
@@ -282,20 +292,20 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 plugin.settings.customMessageOnAutoBackup
             );
 
-            new Setting(containerEl).setName("Commit message").setHeading();
+            new Setting(containerEl).setName("커밋 메시지").setHeading();
 
             const manualCommitMessageSetting = new Setting(containerEl)
-                .setName("Commit message on manual commit")
+                .setName("수동 커밋 시 커밋 메시지")
                 .setDesc(
-                    "Available placeholders: {{date}}" +
-                        " (see below), {{hostname}} (see below), {{numFiles}} (number of changed files in the commit) and {{files}} (changed files in commit message). Leave empty to require manual input on each commit."
+                    "사용 가능한 placeholder: {{date}}" +
+                        " (아래 참조), {{hostname}} (아래 참조), {{numFiles}} (커밋된 변경 파일 수), {{files}} (커밋된 변경 파일 목록). 비워두면 매 커밋마다 직접 입력해야 합니다."
                 );
             manualCommitMessageSetting.addTextArea((text) => {
                 manualCommitMessageSetting.addButton((button) => {
                     button
                         .setIcon("reset")
                         .setTooltip(
-                            `Set to default: "${DEFAULT_SETTINGS.commitMessage}"`
+                            `기본값으로 설정: "${DEFAULT_SETTINGS.commitMessage}"`
                         )
                         .onClick(() => {
                             text.setValue(DEFAULT_SETTINGS.commitMessage);
@@ -311,9 +321,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
             if (Platform.isDesktopApp)
                 new Setting(containerEl)
-                    .setName("Commit message script")
+                    .setName("커밋 메시지 스크립트")
                     .setDesc(
-                        "A script that is run using 'sh -c' to generate the commit message. May be used to generate commit messages using AI tools. Available placeholders: {{hostname}}, {{date}}."
+                        "커밋 메시지를 생성하기 위해 'sh -c'로 실행되는 스크립트. AI 도구 등으로 커밋 메시지를 자동 생성할 때 사용. 사용 가능한 placeholder: {{hostname}}, {{date}}."
                     )
                     .addText((text) => {
                         text.onChange(async (value) => {
@@ -332,7 +342,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     });
 
             const datePlaceholderSetting = new Setting(containerEl)
-                .setName("{{date}} placeholder format")
+                .setName("{{date}} placeholder 포맷")
                 .addMomentFormat((text) =>
                     text
                         .setDefaultFormat(plugin.settings.commitDateFormat)
@@ -344,23 +354,23 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             datePlaceholderSetting.descEl.createSpan({
-                text: ` Specify custom date format. E.g. "${DATE_TIME_FORMAT_SECONDS}. See `,
+                text: ` 날짜 포맷을 직접 지정합니다. 예: "${DATE_TIME_FORMAT_SECONDS}". 더 많은 포맷은 `,
             });
             datePlaceholderSetting.descEl.createEl("a", {
-                text: "Moment.js documentation",
+                text: "Moment.js 문서",
                 href: FORMAT_STRING_REFERENCE_URL,
                 attr: {
                     target: "_blank",
                 },
             });
             datePlaceholderSetting.descEl.createSpan({
-                text: " for more formats.",
+                text: "를 참조하세요.",
             });
 
             new Setting(containerEl)
-                .setName("{{hostname}} placeholder replacement")
+                .setName("{{hostname}} placeholder 값")
                 .setDesc(
-                    "Specify custom hostname for every device. Defaults to the OS hostname if not set on desktop."
+                    "디바이스마다 사용할 hostname을 지정합니다. 데스크탑에서 지정하지 않으면 OS의 hostname이 사용됩니다."
                 )
                 .addText((text) =>
                     text
@@ -371,9 +381,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             new Setting(containerEl)
-                .setName("Preview commit message")
+                .setName("커밋 메시지 미리보기")
                 .addButton((button) =>
-                    button.setButtonText("Preview").onClick(async () => {
+                    button.setButtonText("미리보기").onClick(async () => {
                         const commitMessagePreview =
                             await plugin.gitManager.formatCommitMessage(
                                 plugin.settings.commitMessage
@@ -383,7 +393,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             new Setting(containerEl)
-                .setName("List filenames affected by commit in the commit body")
+                .setName("커밋 본문에 변경된 파일 목록 포함")
                 .addToggle((toggle) =>
                     toggle
                         .setValue(plugin.settings.listChangedFilesInMessageBody)
@@ -398,15 +408,15 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
             if (plugin.gitManager instanceof SimpleGit)
                 new Setting(containerEl)
-                    .setName("Merge strategy")
+                    .setName("Merge 전략")
                     .setDesc(
-                        "Decide how to integrate commits from your remote branch into your local branch."
+                        "원격 브랜치의 커밋을 로컬 브랜치에 통합할 방법을 선택합니다."
                     )
                     .addDropdown((dropdown) => {
                         const options: Record<SyncMethod, string> = {
                             merge: "Merge",
                             rebase: "Rebase",
-                            reset: "Other sync service (Only updates the HEAD without touching the working directory)",
+                            reset: "다른 동기화 서비스 사용 (working directory를 건드리지 않고 HEAD만 갱신)",
                         };
                         dropdown.addOptions(options);
                         dropdown.setValue(plugin.settings.syncMethod);
@@ -418,15 +428,15 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     });
 
             new Setting(containerEl)
-                .setName("Merge strategy on conflicts")
+                .setName("충돌 시 merge 전략")
                 .setDesc(
-                    "Decide how to solve conflicts when pulling remote changes. This can be used to favor your local changes or the remote changes automatically."
+                    "원격 변경사항을 pull할 때 충돌을 해결할 방법을 선택합니다. 로컬 또는 원격 변경사항을 자동으로 우선시할 수 있습니다."
                 )
                 .addDropdown((dropdown) => {
                     const options: Record<MergeStrategy, string> = {
-                        none: "None (git default)",
-                        ours: "Our changes",
-                        theirs: "Their changes",
+                        none: "None (git 기본)",
+                        ours: "내 변경사항 우선",
+                        theirs: "원격 변경사항 우선",
                     };
                     dropdown.addOptions(options);
                     dropdown.setValue(plugin.settings.mergeStrategy);
@@ -438,8 +448,8 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
             new Setting(containerEl)
-                .setName("Pull on startup")
-                .setDesc("Automatically pull commits when Obsidian starts.")
+                .setName("시작 시 자동 pull")
+                .setDesc("옵시디언 시작 시 자동으로 커밋을 pull합니다.")
                 .addToggle((toggle) =>
                     toggle
                         .setValue(plugin.settings.autoPullOnBoot)
@@ -450,16 +460,16 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             new Setting(containerEl)
-                .setName("Commit-and-sync")
+                .setName("커밋 & 동기화 (commit-and-sync)")
                 .setDesc(
-                    "Commit-and-sync with default settings means staging everything -> committing -> pulling -> pushing. Ideally this is a single action that you do regularly to keep your local and remote repository in sync."
+                    "기본 설정의 커밋 & 동기화는 staging → 커밋 → pull → push의 한 번 실행을 의미합니다. 로컬과 원격 저장소를 동기화하기 위해 정기적으로 수행하는 단일 액션입니다."
                 )
                 .setHeading();
 
             setting = new Setting(containerEl)
-                .setName("Push on commit-and-sync")
+                .setName("커밋 & 동기화 시 push")
                 .setDesc(
-                    `Most of the time you want to push after committing. Turning this off turns a commit-and-sync action into commit ${plugin.settings.pullBeforePush ? "and pull " : ""}only. It will still be called commit-and-sync.`
+                    `보통 커밋 후 push까지 합니다. 끄면 ${plugin.settings.pullBeforePush ? "커밋 + pull " : "커밋 "}만 수행하지만 동작 이름은 그대로 "커밋 & 동기화"입니다.`
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -472,9 +482,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
             new Setting(containerEl)
-                .setName("Pull on commit-and-sync")
+                .setName("커밋 & 동기화 시 pull")
                 .setDesc(
-                    `On commit-and-sync, pull commits as well. Turning this off turns a commit-and-sync action into commit ${plugin.settings.disablePush ? "" : "and push "}only.`
+                    `커밋 & 동기화 시 pull도 함께 수행합니다. 끄면 ${plugin.settings.disablePush ? "커밋 " : "커밋 + push "}만 수행합니다.`
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -488,16 +498,16 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
             if (plugin.gitManager instanceof SimpleGit) {
                 new Setting(containerEl)
-                    .setName("Hunk management")
+                    .setName("Hunk 관리")
                     .setDesc(
-                        "Hunks are sections of grouped line changes right in your editor."
+                        "Hunk는 편집기에서 묶인 라인 변경 단위를 의미합니다."
                     )
                     .setHeading();
 
                 new Setting(containerEl)
-                    .setName("Signs")
+                    .setName("표시(Signs)")
                     .setDesc(
-                        "This allows you to see your changes right in your editor via colored markers and stage/reset/preview individual hunks."
+                        "편집기에서 변경사항을 컬러 마커로 표시하고 개별 hunk를 stage/reset/미리보기 할 수 있게 합니다."
                     )
                     .addToggle((toggle) =>
                         toggle
@@ -510,9 +520,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     );
 
                 new Setting(containerEl)
-                    .setName("Hunk commands")
+                    .setName("Hunk 커맨드")
                     .setDesc(
-                        "Adds commands to stage/reset individual Git diff hunks and navigate between them via 'Go to next/prev hunk' commands."
+                        "개별 git diff hunk를 stage/reset하고 'Go to next/prev hunk' 커맨드로 이동할 수 있게 합니다."
                     )
                     .addToggle((toggle) =>
                         toggle
@@ -526,13 +536,13 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     );
 
                 new Setting(containerEl)
-                    .setName("Status bar with summary of line changes")
+                    .setName("상태표시줄에 라인 변경 요약 표시")
                     .addDropdown((toggle) =>
                         toggle
                             .addOptions({
-                                disabled: "Disabled",
-                                colored: "Colored",
-                                monochrome: "Monochrome",
+                                disabled: "비활성화",
+                                colored: "컬러",
+                                monochrome: "단색",
                             })
                             .setValue(plugin.settings.hunks.statusBar)
                             .onChange(
@@ -547,23 +557,23 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     );
 
                 new Setting(containerEl)
-                    .setName("Line author information")
+                    .setName("라인 작성자 정보")
                     .setHeading();
 
                 this.addLineAuthorInfoSettings();
             }
         }
 
-        new Setting(containerEl).setName("History view").setHeading();
+        new Setting(containerEl).setName("히스토리 뷰").setHeading();
 
         new Setting(containerEl)
-            .setName("Show Author")
-            .setDesc("Show the author of the commit in the history view.")
+            .setName("작성자 표시")
+            .setDesc("히스토리 뷰에 커밋 작성자를 표시합니다.")
             .addDropdown((dropdown) => {
                 const options: Record<ShowAuthorInHistoryView, string> = {
-                    hide: "Hide",
-                    full: "Full",
-                    initials: "Initials",
+                    hide: "숨김",
+                    full: "전체 이름",
+                    initials: "이니셜",
                 };
                 dropdown.addOptions(options);
                 dropdown.setValue(plugin.settings.authorInHistoryView);
@@ -575,9 +585,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
-            .setName("Show Date")
+            .setName("날짜 표시")
             .setDesc(
-                "Show the date of the commit in the history view. The {{date}} placeholder format is used to display the date."
+                "히스토리 뷰에 커밋 날짜를 표시합니다. 날짜 표시 형식은 {{date}} placeholder 포맷을 따릅니다."
             )
             .addToggle((toggle) =>
                 toggle
@@ -589,14 +599,14 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     })
             );
 
-        new Setting(containerEl).setName("Source control view").setHeading();
+        new Setting(containerEl).setName("소스 컨트롤 뷰").setHeading();
 
         new Setting(containerEl)
             .setName(
-                "Automatically refresh source control view on file changes"
+                "파일 변경 시 소스 컨트롤 뷰 자동 새로고침"
             )
             .setDesc(
-                "On slower machines this may cause lags. If so, just disable this option."
+                "느린 기기에서는 렉을 유발할 수 있습니다. 그럴 경우 이 옵션을 끄세요."
             )
             .addToggle((toggle) =>
                 toggle
@@ -608,9 +618,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Source control view refresh interval")
+            .setName("소스 컨트롤 뷰 새로고침 간격")
             .setDesc(
-                "Milliseconds to wait after file change before refreshing the Source Control View."
+                "파일 변경 후 소스 컨트롤 뷰를 새로고침하기까지 대기할 시간(밀리초)."
             )
             .addText((text) => {
                 const MIN_SOURCE_CONTROL_REFRESH_INTERVAL = 500;
@@ -637,21 +647,21 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     plugin.setRefreshDebouncer();
                 });
             });
-        new Setting(containerEl).setName("Miscellaneous").setHeading();
+        new Setting(containerEl).setName("기타").setHeading();
 
         if (plugin.gitManager instanceof SimpleGit) {
             new Setting(containerEl)
-                .setName("Diff view style")
+                .setName("Diff 뷰 스타일")
                 .setDesc(
-                    'Set the style for the diff view. Note that the actual diff in "Split" mode is not generated by Git, but the editor itself instead so it may differ from the diff generated by Git. One advantage of this is that you can edit the text in that view.'
+                    'Diff 뷰의 스타일을 설정합니다. "Split" 모드의 diff는 git이 아니라 편집기 자체가 생성하므로 git이 만드는 diff와 다를 수 있습니다. 대신 해당 뷰에서 직접 편집 가능하다는 장점이 있습니다.'
                 )
                 .addDropdown((dropdown) => {
                     const options: Record<
                         ObsidianGitSettings["diffStyle"],
                         string
                     > = {
-                        split: "Split",
-                        git_unified: "Unified",
+                        split: "Split (분할)",
+                        git_unified: "Unified (통합)",
                     };
                     dropdown.addOptions(options);
                     dropdown.setValue(plugin.settings.diffStyle);
@@ -665,9 +675,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
         }
 
         new Setting(containerEl)
-            .setName("Disable informative notifications")
+            .setName("일반 알림 끄기")
             .setDesc(
-                "Disable informative notifications for git operations to minimize distraction (refer to status bar for updates)."
+                "git 작업의 정보 알림을 끕니다. 방해를 최소화하기 위함 (상태는 상태표시줄에서 확인)."
             )
             .addToggle((toggle) =>
                 toggle
@@ -680,9 +690,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Disable error notifications")
+            .setName("오류 알림 끄기")
             .setDesc(
-                "Disable error notifications of any kind to minimize distraction (refer to status bar for updates)."
+                "모든 종류의 오류 알림을 끕니다. 방해를 최소화하기 위함 (상태는 상태표시줄에서 확인)."
             )
             .addToggle((toggle) =>
                 toggle
@@ -695,9 +705,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (!plugin.settings.disablePopups)
             new Setting(containerEl)
-                .setName("Hide notifications for no changes")
+                .setName("변경사항 없을 때 알림 숨기기")
                 .setDesc(
-                    "Don't show notifications when there are no changes to commit or push."
+                    "커밋이나 push할 변경사항이 없을 때 알림을 표시하지 않습니다."
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -709,9 +719,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
         new Setting(containerEl)
-            .setName("Show status bar")
+            .setName("상태표시줄 표시")
             .setDesc(
-                "Obsidian must be restarted for the changes to take affect."
+                "옵시디언을 재시작해야 변경사항이 적용됩니다."
             )
             .addToggle((toggle) =>
                 toggle
@@ -723,9 +733,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("File menu integration")
+            .setName("파일 메뉴 통합")
             .setDesc(
-                `Add "Stage", "Unstage" and "Add to .gitignore" actions to the file menu.`
+                `파일 메뉴에 "Stage", "Unstage", ".gitignore에 추가" 액션을 추가합니다.`
             )
             .addToggle((toggle) =>
                 toggle
@@ -737,9 +747,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Show branch status bar")
+            .setName("브랜치 상태표시줄 표시")
             .setDesc(
-                "Obsidian must be restarted for the changes to take affect."
+                "옵시디언을 재시작해야 변경사항이 적용됩니다."
             )
             .addToggle((toggle) =>
                 toggle
@@ -751,7 +761,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Show the count of modified files in the status bar")
+            .setName("상태표시줄에 변경된 파일 개수 표시")
             .addToggle((toggle) =>
                 toggle
                     .setValue(plugin.settings.changedFilesInStatusBar)
@@ -763,16 +773,16 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitManager instanceof IsomorphicGit) {
             new Setting(containerEl)
-                .setName("Authentication/commit author")
+                .setName("인증 / 커밋 작성자")
                 .setHeading();
         } else {
-            new Setting(containerEl).setName("Commit author").setHeading();
+            new Setting(containerEl).setName("커밋 작성자").setHeading();
         }
 
         if (plugin.gitManager instanceof IsomorphicGit)
             new Setting(containerEl)
                 .setName(
-                    "Username on your git server. E.g. your username on GitHub"
+                    "git 서버의 사용자명 (예: GitHub의 username)"
                 )
                 .addText((cb) => {
                     cb.setValue(plugin.localStorage.getUsername() ?? "");
@@ -783,9 +793,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitManager instanceof IsomorphicGit)
             new Setting(containerEl)
-                .setName("Password/Personal access token")
+                .setName("비밀번호 / Personal Access Token")
                 .setDesc(
-                    "Type in your password. You won't be able to see it again."
+                    "비밀번호를 입력하세요. 한 번 저장하면 다시 볼 수 없습니다."
                 )
                 .addText((cb) => {
                     cb.inputEl.autocapitalize = "off";
@@ -798,7 +808,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitReady)
             new Setting(containerEl)
-                .setName("Author name for commit")
+                .setName("커밋 작성자 이름 (user.name)")
                 .addText(async (cb) => {
                     cb.setValue(
                         (await plugin.gitManager.getConfig("user.name")) ?? ""
@@ -813,7 +823,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitReady)
             new Setting(containerEl)
-                .setName("Author email for commit")
+                .setName("커밋 작성자 이메일 (user.email)")
                 .addText(async (cb) => {
                     cb.setValue(
                         (await plugin.gitManager.getConfig("user.email")) ?? ""
@@ -827,17 +837,17 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
         new Setting(containerEl)
-            .setName("Advanced")
+            .setName("고급")
             .setDesc(
-                "These settings usually don't need to be changed, but may be required for special setups."
+                "일반적으로는 변경할 필요가 없지만 특수한 환경에서 필요할 수 있습니다."
             )
             .setHeading();
 
         if (plugin.gitManager instanceof SimpleGit) {
             new Setting(containerEl)
-                .setName("Update submodules")
+                .setName("서브모듈 업데이트")
                 .setDesc(
-                    '"Commit-and-sync" and "pull" takes care of submodules. Missing features: Conflicted files, count of pulled/pushed/committed files. Tracking branch needs to be set for each submodule.'
+                    '"커밋 & 동기화"와 "pull"이 서브모듈도 처리합니다. 미지원: 충돌 파일, pull/push/커밋된 파일 수 집계. 각 서브모듈에 추적 브랜치(tracking branch)가 설정되어 있어야 합니다.'
                 )
                 .addToggle((toggle) =>
                     toggle
@@ -849,9 +859,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
             if (plugin.settings.updateSubmodules) {
                 new Setting(containerEl)
-                    .setName("Submodule recurse checkout/switch")
+                    .setName("서브모듈 재귀 checkout/switch")
                     .setDesc(
-                        "Whenever a checkout happens on the root repository, recurse the checkout on the submodules (if the branches exist)."
+                        "루트 저장소에서 checkout이 일어날 때 서브모듈에도 재귀적으로 checkout을 수행합니다 (해당 브랜치가 존재하는 경우)."
                     )
                     .addToggle((toggle) =>
                         toggle
@@ -867,9 +877,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitManager instanceof SimpleGit)
             new Setting(containerEl)
-                .setName("Custom Git binary path")
+                .setName("git 바이너리 경로 직접 지정")
                 .setDesc(
-                    "Specify the path to the Git binary/executable. Git should already be in your PATH. Should only be necessary for a custom Git installation."
+                    "git 실행 파일의 경로를 지정합니다. 보통 PATH에 git이 있어야 하며, 별도 위치에 설치된 git을 쓸 때만 필요합니다."
                 )
                 .addText((cb) => {
                     cb.setValue(plugin.localStorage.getGitPath() ?? "");
@@ -884,9 +894,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitManager instanceof SimpleGit)
             new Setting(containerEl)
-                .setName("Additional environment variables")
+                .setName("추가 환경변수")
                 .setDesc(
-                    "Use each line for a new environment variable in the format KEY=VALUE ."
+                    "한 줄에 하나씩, KEY=VALUE 형식으로 환경변수를 입력합니다."
                 )
                 .addTextArea((cb) => {
                     cb.setPlaceholder("GIT_DIR=/path/to/git/dir");
@@ -898,8 +908,8 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (plugin.gitManager instanceof SimpleGit)
             new Setting(containerEl)
-                .setName("Additional PATH environment variable paths")
-                .setDesc("Use each line for one path")
+                .setName("PATH 환경변수에 추가할 경로")
+                .setDesc("한 줄에 하나씩 경로를 입력합니다.")
                 .addTextArea((cb) => {
                     cb.setValue(plugin.localStorage.getPATHPaths().join("\n"));
                     cb.onChange((value) => {
@@ -908,12 +918,12 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
         if (plugin.gitManager instanceof SimpleGit)
             new Setting(containerEl)
-                .setName("Reload with new environment variables")
+                .setName("새 환경변수로 다시 로드")
                 .setDesc(
-                    "Removing previously added environment variables will not take effect until Obsidian is restarted."
+                    "이전에 추가했던 환경변수를 제거한 경우, 옵시디언을 재시작해야 반영됩니다."
                 )
                 .addButton((cb) => {
-                    cb.setButtonText("Reload");
+                    cb.setButtonText("다시 로드");
                     cb.setCta();
                     cb.onClick(async () => {
                         await (plugin.gitManager as SimpleGit).setGitInstance();
@@ -921,11 +931,11 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
         new Setting(containerEl)
-            .setName("Custom base path (Git repository path)")
+            .setName("기본 경로 직접 지정 (git 저장소 경로)")
             .setDesc(
                 `
-            Sets the relative path to the vault from which the Git binary should be executed.
-             Mostly used to set the path to the Git repository, which is only required if the Git repository is below the vault root directory. Use "\\" instead of "/" on Windows.
+            git 바이너리가 실행될 vault 내부의 상대 경로를 지정합니다.
+            git 저장소가 vault 루트가 아닌 하위 디렉토리에 있을 때 필요합니다. Windows에서는 "/" 대신 "\\"를 사용하세요.
             `
             )
             .addText((cb) => {
@@ -941,9 +951,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
-            .setName("Custom Git directory path (Instead of '.git')")
+            .setName("git 디렉토리 경로 직접 지정 ('.git' 대신)")
             .setDesc(
-                `Corresponds to the GIT_DIR environment variable. Requires restart of Obsidian to take effect. Use "\\" instead of "/" on Windows.`
+                `GIT_DIR 환경변수에 해당합니다. 적용하려면 옵시디언 재시작이 필요합니다. Windows에서는 "/" 대신 "\\"를 사용하세요.`
             )
             .addText((cb) => {
                 cb.setValue(plugin.settings.gitDir);
@@ -955,9 +965,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
-            .setName("Disable on this device")
+            .setName("이 디바이스에서 비활성화")
             .setDesc(
-                "Disables the plugin on this device. This setting is not synced."
+                "이 디바이스에서만 플러그인을 비활성화합니다. 이 설정은 동기화되지 않습니다."
             )
             .addToggle((toggle) =>
                 toggle
@@ -972,16 +982,16 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                                 .catch((e) => plugin.displayError(e));
                         }
                         new Notice(
-                            "Obsidian must be restarted for the changes to take affect."
+                            "옵시디언을 재시작해야 변경사항이 적용됩니다."
                         );
                     })
             );
 
-        new Setting(containerEl).setName("Support").setHeading();
+        new Setting(containerEl).setName("지원").setHeading();
         new Setting(containerEl)
-            .setName("Donate")
+            .setName("후원")
             .setDesc(
-                "If you like this Plugin, consider donating to support continued development."
+                "이 플러그인이 마음에 들었다면 개발 지속을 위한 후원을 고려해 주세요."
             )
             .addButton((bt) => {
                 const link = bt.buttonEl.parentElement?.createEl("a", {
@@ -1009,7 +1019,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
         debugDiv.setAttr("style", "margin: var(--size-4-2)");
 
         const debugButton = debugDiv.createEl("button");
-        debugButton.setText("Copy Debug Information");
+        debugButton.setText("디버그 정보 복사");
         debugButton.onclick = async () => {
             await window.navigator.clipboard.writeText(
                 JSON.stringify(
@@ -1022,7 +1032,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 )
             );
             new Notice(
-                "Debug information copied to clipboard. May contain sensitive information!"
+                "디버그 정보를 클립보드에 복사했습니다. 민감한 정보가 포함되어 있을 수 있습니다!"
             );
         };
 
@@ -1030,7 +1040,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             const info = containerEl.createDiv();
             info.setAttr("align", "center");
             info.setText(
-                "Debugging and logging:\nYou can always see the logs of this and every other plugin by opening the console with"
+                "디버깅과 로그 확인:\n이 플러그인 및 다른 플러그인의 로그를 보려면 콘솔을 여세요"
             );
             const keys = containerEl.createDiv();
             keys.setAttr("align", "center");
@@ -1041,6 +1051,9 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 keys.createEl("kbd", { text: "CTRL + SHIFT + I" });
             }
         }
+
+        // (Encryption section rendered at the TOP of display() now.)
+        this.addGitignoreSection(this.containerEl);
     }
 
     mayDisableSetting(setting: Setting, disable: boolean) {
@@ -1088,31 +1101,31 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
     private addLineAuthorInfoSettings() {
         const baseLineAuthorInfoSetting = new Setting(this.containerEl).setName(
-            "Show commit authoring information next to each line"
+            "각 라인 옆에 커밋 작성 정보 표시"
         );
 
         if (
             !this.plugin.editorIntegration.lineAuthoringFeature.isAvailableOnCurrentPlatform()
         ) {
             baseLineAuthorInfoSetting
-                .setDesc("Only available on desktop currently.")
+                .setDesc("현재 데스크탑에서만 사용 가능합니다.")
                 .setDisabled(true);
         }
 
         baseLineAuthorInfoSetting.descEl.createEl("a", {
             href: LINE_AUTHOR_FEATURE_WIKI_LINK,
-            text: "Feature guide and quick examples",
+            text: "기능 가이드 및 예시",
             attr: {
                 target: "_blank",
             },
         });
         baseLineAuthorInfoSetting.descEl.createEl("br");
         baseLineAuthorInfoSetting.descEl.createSpan({
-            text: " The commit hash, author name and authoring date can all be individually toggled.",
+            text: " 커밋 해시, 작성자 이름, 작성 날짜를 각각 개별 토글할 수 있습니다.",
         });
         baseLineAuthorInfoSetting.descEl.createEl("br");
         baseLineAuthorInfoSetting.descEl.createSpan({
-            text: "Hide everything, to only show the age-colored sidebar.",
+            text: "모두 숨기면 나이별 컬러 사이드바만 표시됩니다.",
         });
 
         baseLineAuthorInfoSetting.addToggle((toggle) =>
@@ -1124,14 +1137,14 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
 
         if (this.settings.lineAuthor.show) {
             const trackMovement = new Setting(this.containerEl)
-                .setName("Follow movement and copies across files and commits")
+                .setName("파일·커밋 간 라인 이동/복사 추적")
                 .addDropdown((dropdown) => {
                     dropdown.addOptions(<
                         Record<LineAuthorFollowMovement, string>
                     >{
-                        inactive: "Do not follow (default)",
-                        "same-commit": "Follow within same commit",
-                        "all-commits": "Follow within all commits (maybe slow)",
+                        inactive: "추적 안 함 (기본)",
+                        "same-commit": "같은 커밋 내에서 추적",
+                        "all-commits": "모든 커밋에서 추적 (느릴 수 있음)",
                     });
                     dropdown.setValue(this.settings.lineAuthor.followMovement);
                     dropdown.onChange((value: LineAuthorFollowMovement) =>
@@ -1140,22 +1153,20 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
             trackMovement.descEl.createSpan({
-                text: "By default (deactivated), each line only shows the newest commit where it was changed.",
+                text: "기본 (비활성)에서는 각 라인이 마지막으로 변경된 가장 최근 커밋만 표시합니다.",
             });
             trackMovement.descEl.createEl("br");
-            trackMovement.descEl.createSpan({ text: "With " });
-            trackMovement.descEl.createEl("i", { text: "same commit" });
+            trackMovement.descEl.createEl("i", { text: "같은 커밋 내 추적" });
             trackMovement.descEl.createSpan({
-                text: ", cut-copy-paste-ing of text is followed within the same commit and the original commit of authoring will be shown.",
+                text: ": 같은 커밋 안의 잘라내기-복사-붙여넣기를 추적하여 원본 작성 커밋을 표시합니다.",
             });
             trackMovement.descEl.createEl("br");
-            trackMovement.descEl.createSpan({ text: "With " });
-            trackMovement.descEl.createEl("i", { text: "all commits" });
+            trackMovement.descEl.createEl("i", { text: "모든 커밋에서 추적" });
             trackMovement.descEl.createSpan({
-                text: ", cut-copy-paste-ing text inbetween multiple commits will be detected.",
+                text: ": 여러 커밋 사이의 잘라내기-복사-붙여넣기도 감지합니다.",
             });
             trackMovement.descEl.createEl("br");
-            trackMovement.descEl.createSpan({ text: "It uses " });
+            trackMovement.descEl.createSpan({ text: "내부적으로 " });
             trackMovement.descEl.createEl("a", {
                 href: "https://git-scm.com/docs/git-blame",
                 text: "git-blame",
@@ -1164,15 +1175,15 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 },
             });
             trackMovement.descEl.createSpan({
-                text: ` and for matches (at least ${GIT_LINE_AUTHORING_MOVEMENT_DETECTION_MINIMAL_LENGTH} characters) within the same (or all) commit(s), `,
+                text: `을 사용하며, 같은 (또는 모든) 커밋 내에서 최소 ${GIT_LINE_AUTHORING_MOVEMENT_DETECTION_MINIMAL_LENGTH}자 이상 일치할 때 `,
             });
-            trackMovement.descEl.createEl("em", { text: "the originating" });
+            trackMovement.descEl.createEl("em", { text: "원본 작성" });
             trackMovement.descEl.createSpan({
-                text: " commit's information is shown.",
+                text: " 커밋 정보를 표시합니다.",
             });
 
             new Setting(this.containerEl)
-                .setName("Show commit hash")
+                .setName("커밋 해시 표시")
                 .addToggle((tgl) => {
                     tgl.setValue(this.settings.lineAuthor.showCommitHash);
                     tgl.onChange((value: boolean) =>
@@ -1181,15 +1192,15 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
             new Setting(this.containerEl)
-                .setName("Author name display")
-                .setDesc("If and how the author is displayed")
+                .setName("작성자 이름 표시")
+                .setDesc("작성자 이름의 표시 형식")
                 .addDropdown((dropdown) => {
                     const options: Record<LineAuthorDisplay, string> = {
-                        hide: "Hide",
-                        initials: "Initials (default)",
-                        "first name": "First name",
-                        "last name": "Last name",
-                        full: "Full name",
+                        hide: "숨김",
+                        initials: "이니셜 (기본)",
+                        "first name": "이름(first)",
+                        "last name": "성(last)",
+                        full: "전체 이름",
                     };
                     dropdown.addOptions(options);
                     dropdown.setValue(this.settings.lineAuthor.authorDisplay);
@@ -1200,20 +1211,20 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
 
             new Setting(this.containerEl)
-                .setName("Authoring date display")
+                .setName("작성 날짜 표시")
                 .setDesc(
-                    "If and how the date and time of authoring the line is displayed"
+                    "라인 작성 일시의 표시 형식"
                 )
                 .addDropdown((dropdown) => {
                     const options: Record<
                         LineAuthorDateTimeFormatOptions,
                         string
                     > = {
-                        hide: "Hide",
-                        date: "Date (default)",
-                        datetime: "Date and time",
-                        "natural language": "Natural language",
-                        custom: "Custom",
+                        hide: "숨김",
+                        date: "날짜 (기본)",
+                        datetime: "날짜 + 시간",
+                        "natural language": "자연어",
+                        custom: "사용자 지정",
                     };
                     dropdown.addOptions(options);
                     dropdown.setValue(
@@ -1237,7 +1248,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 );
 
                 dateTimeFormatCustomStringSetting
-                    .setName("Custom authoring date format")
+                    .setName("작성 날짜 사용자 지정 포맷")
                     .addText((cb) => {
                         cb.setValue(
                             this.settings.lineAuthor.dateTimeFormatCustomString
@@ -1263,11 +1274,11 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             }
 
             const timezoneSetting = new Setting(this.containerEl)
-                .setName("Authoring date display timezone")
+                .setName("작성 날짜 표시 시간대")
                 .addDropdown((dropdown) => {
                     const options: Record<LineAuthorTimezoneOption, string> = {
-                        "viewer-local": "My local (default)",
-                        "author-local": "Author's local",
+                        "viewer-local": "내 로컬 시간대 (기본)",
+                        "author-local": "작성자의 로컬 시간대",
                         utc0000: "UTC+0000/Z",
                     };
                     dropdown.addOptions(options);
@@ -1281,7 +1292,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
             timezoneSetting.descEl.empty();
             timezoneSetting.descEl.createSpan({
-                text: "The time-zone in which the authoring date should be shown.\nEither your local time-zone (default),\nthe author's time-zone during commit creation or\n",
+                text: "작성 날짜를 표시할 시간대.\n내 로컬 시간대(기본), 커밋 작성 당시 작성자의 로컬 시간대, 또는\n",
             });
             timezoneSetting.descEl.createEl("a", {
                 text: "UTC±00:00",
@@ -1292,7 +1303,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             });
 
             const oldestAgeSetting = new Setting(this.containerEl).setName(
-                "Oldest age in coloring"
+                "컬러링에 사용할 최대 나이"
             );
 
             this.setOldestAgeDescription(
@@ -1324,7 +1335,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
             this.createColorSetting("oldest");
 
             const textColorSetting = new Setting(this.containerEl)
-                .setName("Text color")
+                .setName("텍스트 색상")
                 .addText((field) => {
                     field.setValue(this.settings.lineAuthor.textColorCss);
                     field.onChange(async (value) => {
@@ -1336,19 +1347,19 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
             textColorSetting.descEl.empty();
             textColorSetting.descEl.createSpan({
-                text: "The CSS color of the gutter text.",
+                text: "거터 텍스트의 CSS 색상.",
             });
             textColorSetting.descEl.createEl("br");
             textColorSetting.descEl.createEl("br");
             textColorSetting.descEl.createSpan({
-                text: "It is highly recommended to use ",
+                text: "테마가 정의한 ",
             });
             textColorSetting.descEl.createEl("a", {
-                text: "CSS variables",
-                href: "https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties",
+                text: "CSS 변수",
+                href: "https://developer.mozilla.org/ko/docs/Web/CSS/Using_CSS_custom_properties",
             });
             textColorSetting.descEl.createSpan({
-                text: " defined by themes (e.g. ",
+                text: " 사용을 강력히 권장합니다 (예: ",
             });
             textColorSetting.descEl.createEl("pre", {
                 text: "var(--text-muted)",
@@ -1356,7 +1367,7 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                     style: "display:inline",
                 },
             });
-            textColorSetting.descEl.createSpan({ text: " or " });
+            textColorSetting.descEl.createSpan({ text: " 또는 " });
             textColorSetting.descEl.createEl("pre", {
                 text: "var(--text-on-accent)",
                 attr: {
@@ -1364,18 +1375,18 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 },
             });
             textColorSetting.descEl.createSpan({
-                text: "), because they automatically adapt to theme changes.",
+                text: "). 테마 변경에 자동으로 적응합니다.",
             });
             textColorSetting.descEl.createEl("br");
             textColorSetting.descEl.createEl("br");
-            textColorSetting.descEl.createSpan({ text: "See: " });
+            textColorSetting.descEl.createSpan({ text: "참고: " });
             textColorSetting.descEl.createEl("a", {
-                text: "List of available CSS variables in Obsidian",
+                text: "Obsidian에서 사용 가능한 CSS 변수 목록",
                 href: "https://github.com/obsidian-community/obsidian-theme-template/blob/main/obsidian.css",
             });
 
             const ignoreWhitespaceSetting = new Setting(this.containerEl)
-                .setName("Ignore whitespace and newlines in changes")
+                .setName("변경사항에서 공백·개행 무시")
                 .addToggle((tgl) => {
                     tgl.setValue(this.settings.lineAuthor.ignoreWhitespace);
                     tgl.onChange((value) =>
@@ -1384,13 +1395,182 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 });
             ignoreWhitespaceSetting.descEl.empty();
             ignoreWhitespaceSetting.descEl.createSpan({
-                text: "Whitespace and newlines are interpreted as part of the document and in changes by default (hence not ignored). This makes the last line being shown as 'changed' when a new subsequent line is added, even if the previously last line's text is the same.",
+                text: "기본값에서는 공백과 개행도 문서·변경의 일부로 간주됩니다(=무시하지 않음). 그래서 새 줄이 추가되면 이전 마지막 줄이 텍스트가 같더라도 '변경됨'으로 표시됩니다.",
             });
             ignoreWhitespaceSetting.descEl.createEl("br");
             ignoreWhitespaceSetting.descEl.createSpan({
-                text: "If you don't care about purely-whitespace changes (e.g. list nesting / quote indentation changes), then activating this will provide more meaningful change detection.",
+                text: "순수 공백 변경(예: 리스트 들여쓰기, 인용 들여쓰기)을 무시하고 싶다면 이 옵션을 활성화하세요. 더 의미 있는 변경 감지가 됩니다.",
             });
         }
+    }
+
+    /**
+     * Transparent vault encryption settings — AES-256-GCM at the
+     * isomorphic-git filesystem layer. Password is held only in this
+     * device's localStorage; salt is a hardcoded plugin constant.
+     */
+    private addEncryptionSection(containerEl: HTMLElement): void {
+        new Setting(containerEl)
+            .setName("Vault 암호화 (실험적)")
+            .setHeading()
+            .setDesc(
+                createFragment((frag) => {
+                    frag.createEl("p", {
+                        text: "디바이스를 떠나기 전에 vault의 모든 파일을 암호화합니다. Git 서버에는 ciphertext만 저장되며, 옵시디언 자체는 평문을 보기 때문에 검색·그래프·백링크가 정상 동작합니다.",
+                    });
+                    frag.createEl("p", {
+                        text: "isomorphic-git 모드 전용입니다 (암호화가 켜지면 시스템 git 모드는 자동으로 비활성화됩니다). 비밀번호는 이 디바이스의 localStorage에만 저장되며 어디에도 동기화되지 않습니다. 같은 vault를 복호화하려면 모든 디바이스에서 동일한 비밀번호를 입력해야 합니다.",
+                    });
+                    frag.createEl("p", {
+                        text: "⚠ 비밀번호를 잃으면 vault는 영구적으로 복호화 불가능합니다. 사용 전에 비밀번호 관리자(1Password, Bitwarden 등)에 반드시 백업해 두세요.",
+                    });
+                })
+            );
+
+        new Setting(containerEl)
+            .setName("암호화 활성화")
+            .setDesc(
+                "디바이스마다 독립적으로 토글합니다. 토글 변경 시 자동으로 적용됩니다. 동일한 비밀번호는 어디서든 동일한 키를 생성합니다 (디바이스 간 동기화 상태 없음)."
+            )
+            .addToggle((tgl) => {
+                tgl.setValue(this.plugin.settings.encryption.enabled);
+                tgl.onChange(async (value) => {
+                    this.plugin.settings.encryption.enabled = value;
+                    await this.plugin.saveSettings();
+                    try {
+                        await this.plugin.init({ fromReload: true });
+                        new Notice(
+                            value
+                                ? "암호화가 활성화되었습니다."
+                                : "암호화가 비활성화되었습니다."
+                        );
+                    } catch (e) {
+                        console.error("암호화 토글 적용 실패:", e);
+                        new Notice(
+                            "적용 실패 — 개발자 콘솔을 확인하세요"
+                        );
+                    }
+                });
+            });
+
+        // Password change re-derives keys (PBKDF2 200k iter is heavy), so
+        // debounce the re-init to avoid running it on every keystroke.
+        const reinitOnPasswordChange = debounce(
+            () => {
+                if (!this.plugin.settings.encryption.enabled) return;
+                void this.plugin
+                    .init({ fromReload: true })
+                    .then(() => new Notice("비밀번호가 적용되었습니다."))
+                    .catch((e) => {
+                        console.error("비밀번호 적용 실패:", e);
+                        new Notice("적용 실패 — 개발자 콘솔을 확인하세요");
+                    });
+            },
+            800,
+            true
+        );
+
+        new Setting(containerEl)
+            .setName("암호화 비밀번호")
+            .setDesc(
+                "이 디바이스의 localStorage에만 저장됩니다. 비워두면 삭제됩니다. 이 vault를 동기화하는 모든 디바이스에서 동일한 값을 입력해야 합니다. 입력 후 잠시 멈추면 자동 적용됩니다."
+            )
+            .addText((text) => {
+                text.inputEl.type = "password";
+                text.setPlaceholder("비밀번호");
+                const current =
+                    this.plugin.localStorage.getEncryptionPassword() ?? "";
+                text.setValue(current);
+                text.onChange((value) => {
+                    if (value) {
+                        this.plugin.localStorage.setEncryptionPassword(value);
+                    } else {
+                        this.plugin.localStorage.clearEncryptionPassword();
+                    }
+                    reinitOnPasswordChange();
+                });
+            });
+    }
+
+    /**
+     * Bind a textarea to the vault's root `.gitignore` file. Reads it on
+     * mount (creating it with {@link DEFAULT_GITIGNORE} if missing), writes
+     * back on edit (debounced), and offers a button to reset to defaults.
+     */
+    private addGitignoreSection(containerEl: HTMLElement): void {
+        new Setting(containerEl)
+            .setName(".gitignore")
+            .setHeading()
+            .setDesc(
+                "vault 루트의 .gitignore 파일을 직접 편집합니다. 변경사항은 타이핑이 멈춘 뒤 500ms 후 자동 저장됩니다."
+            );
+
+        const adapter = this.plugin.app.vault.adapter;
+        const gitignorePath = ".gitignore";
+
+        const writeDebounced = debounce(
+            (value: string) => {
+                void adapter.write(gitignorePath, value);
+            },
+            500,
+            true
+        );
+
+        let textArea: TextAreaComponent | undefined;
+
+        new Setting(containerEl)
+            .setName(".gitignore 내용")
+            .setClass("obsidian-git-gitignore-setting")
+            .addTextArea((ta) => {
+                textArea = ta;
+                ta.inputEl.rows = 12;
+                ta.inputEl.style.width = "100%";
+                ta.inputEl.style.fontFamily = "var(--font-monospace)";
+                ta.setPlaceholder("불러오는 중…");
+
+                void (async () => {
+                    try {
+                        const exists = await adapter.exists(gitignorePath);
+                        let content: string;
+                        if (exists) {
+                            content = await adapter.read(gitignorePath);
+                        } else {
+                            content = DEFAULT_GITIGNORE;
+                            await adapter.write(gitignorePath, content);
+                        }
+                        ta.setValue(content);
+                    } catch (e) {
+                        console.error(".gitignore 불러오기 실패:", e);
+                        ta.setPlaceholder(
+                            "불러오기 실패 — 개발자 콘솔(Ctrl+Shift+I)을 확인하세요"
+                        );
+                    }
+                })();
+
+                ta.onChange((value) => writeDebounced(value));
+            });
+
+        new Setting(containerEl)
+            .setName("기본값 불러오기")
+            .setDesc(
+                "현재 .gitignore 내용을 지우고 기본값으로 덮어씁니다."
+            )
+            .addButton((btn) => {
+                btn.setButtonText("기본값으로 재설정").onClick(async () => {
+                    try {
+                        await adapter.write(gitignorePath, DEFAULT_GITIGNORE);
+                        textArea?.setValue(DEFAULT_GITIGNORE);
+                        new Notice(
+                            ".gitignore를 기본값으로 재설정했습니다."
+                        );
+                    } catch (e) {
+                        console.error(".gitignore 재설정 실패:", e);
+                        new Notice(
+                            "재설정 실패 — 개발자 콘솔을 확인하세요"
+                        );
+                    }
+                });
+            });
     }
 
     private createColorSetting(which: "oldest" | "newest") {

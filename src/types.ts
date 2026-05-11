@@ -71,6 +71,22 @@ export interface ObsidianGitSettings {
         showSigns: boolean;
         statusBar: "disabled" | "colored" | "monochrome";
     };
+
+    /**
+     * Transparent vault encryption.
+     *
+     * When `enabled` is true and a password has been supplied at runtime
+     * (kept in plugin localStorage, not in this settings object),
+     * isomorphic-git will see encrypted bytes for every vault file.
+     *
+     * The key is derived from password + a hardcoded plugin-internal salt
+     * (see crypto/vaultCrypto.ts), so no cross-device state needs to be
+     * synchronized. Identical passwords on every device produce identical
+     * keys deterministically.
+     */
+    encryption: {
+        enabled: boolean;
+    };
 }
 
 /**

@@ -227,7 +227,7 @@
                 id="backup-btn"
                 data-icon="arrow-up-circle"
                 class="clickable-icon nav-action-button"
-                aria-label="Commit-and-sync"
+                aria-label="커밋 & 동기화"
                 bind:this={buttons[0]}
                 onclick={commitAndSync}
             ></div>
@@ -235,7 +235,7 @@
                 id="commit-btn"
                 data-icon="check"
                 class="clickable-icon nav-action-button"
-                aria-label="Commit"
+                aria-label="커밋"
                 bind:this={buttons[1]}
                 onclick={commit}
             ></div>
@@ -243,7 +243,7 @@
                 id="stage-all"
                 class="clickable-icon nav-action-button"
                 data-icon="plus-circle"
-                aria-label="Stage all"
+                aria-label="전체 stage"
                 bind:this={buttons[2]}
                 onclick={stageAll}
             ></div>
@@ -251,7 +251,7 @@
                 id="unstage-all"
                 class="clickable-icon nav-action-button"
                 data-icon="minus-circle"
-                aria-label="Unstage all"
+                aria-label="전체 unstage"
                 bind:this={buttons[3]}
                 onclick={unstageAll}
             ></div>
@@ -274,7 +274,7 @@
             <div
                 id="layoutChange"
                 class="clickable-icon nav-action-button"
-                aria-label="Change Layout"
+                aria-label="레이아웃 전환"
                 data-icon={showTree ? "list" : "folder"}
                 bind:this={buttons[6]}
                 onclick={() => {
@@ -289,7 +289,7 @@
                 class="clickable-icon nav-action-button"
                 class:loading
                 data-icon="refresh-cw"
-                aria-label="Refresh"
+                aria-label="새로고침"
                 bind:this={buttons[7]}
                 onclick={triggerRefresh}
             ></div>
@@ -300,14 +300,14 @@
             {rows}
             class="commit-msg-input"
             spellcheck="true"
-            placeholder="Commit Message"
+            placeholder="커밋 메시지"
             bind:value={commitMessage}
         ></textarea>
         {#if commitMessage}
             <div
                 class="git-commit-msg-clear-button"
                 onclick={() => (commitMessage = "")}
-                aria-label={"Clear"}
+                aria-label={"지우기"}
             ></div>
         {/if}
     </div>
@@ -342,7 +342,7 @@
                             >
                         </div>
                         <div class="tree-item-inner nav-folder-title-content">
-                            Staged Changes
+                            Staged 변경사항
                         </div>
 
                         <div class="git-tools">
@@ -433,7 +433,7 @@
                         </div>
 
                         <div class="tree-item-inner nav-folder-title-content">
-                            Changes
+                            변경사항
                         </div>
                         <div class="git-tools">
                             <div class="buttons">

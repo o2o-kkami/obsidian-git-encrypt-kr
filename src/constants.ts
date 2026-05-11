@@ -8,6 +8,20 @@ export const GIT_LINE_AUTHORING_MOVEMENT_DETECTION_MINIMAL_LENGTH = 40;
 
 export const CONFLICT_OUTPUT_FILE = "conflict-files-obsidian-git.md";
 
+/**
+ * Default content for the vault's `.gitignore` file. Used to populate the
+ * file on first settings-page visit if it doesn't already exist, and as
+ * the target of the "기본값으로 재설정" button in the settings UI.
+ *
+ * Each `folder/` line excludes the directory and everything inside it.
+ * Patterns like `folder/**` would be redundant.
+ */
+export const DEFAULT_GITIGNORE = `.obsidian/
+.claude/
+.trash/
+.DS_Store
+`;
+
 export const DEFAULT_SETTINGS: ObsidianGitSettings = {
     commitMessage: "vault backup: {{date}}",
     autoCommitMessage: "vault backup: {{date}}",
@@ -67,28 +81,31 @@ export const DEFAULT_SETTINGS: ObsidianGitSettings = {
         ignoreWhitespace: false,
         gutterSpacingFallbackLength: 5,
     },
+    encryption: {
+        enabled: false,
+    },
 };
 
 export const SOURCE_CONTROL_VIEW_CONFIG = {
     type: "git-view",
-    name: "Source Control",
+    name: "소스 컨트롤",
     icon: "git-pull-request",
 };
 
 export const HISTORY_VIEW_CONFIG = {
     type: "git-history-view",
-    name: "History",
+    name: "히스토리",
     icon: "history",
 };
 
 export const SPLIT_DIFF_VIEW_CONFIG = {
     type: "split-diff-view",
-    name: "Diff view",
+    name: "Diff 뷰 (분할)",
     icon: "diff",
 };
 export const DIFF_VIEW_CONFIG = {
     type: "diff-view",
-    name: "Diff View",
+    name: "Diff 뷰",
     icon: "git-pull-request",
 };
 
