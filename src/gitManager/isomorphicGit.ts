@@ -28,6 +28,19 @@ import { MyAdapter } from "./myAdapter";
 import { EncryptedAdapter } from "./encryptedAdapter";
 import diff3Merge from "diff3";
 
+/**
+ * Repository-relative paths that this fork refuses to ever stage,
+ * commit, or push. They live in the working tree but never enter
+ * the index, so they cannot be propagated to other devices through
+ * origin even if a user clicks "Stage all" on them.
+ *
+ * Currently just the vault-root .gitignore — that file is treated
+ * as per-device environment config, not as shared content.
+ */
+function isLocalOnlyPath(repoPath: string): boolean {
+    return repoPath === ".gitignore";
+}
+
 export class IsomorphicGit extends GitManager {
     private readonly FILE = 0;
     private readonly HEAD = 1;
@@ -254,6 +267,17 @@ export class IsomorphicGit extends GitManager {
 
     async stage(filepath: string, relativeToVault: boolean): Promise<void> {
         const gitPath = this.getRelativeRepoPath(filepath, relativeToVault);
+
+        // Fork policy: .gitignore is treated as a per-device environment
+        // file, never as shared content. The stage paths refuse to put it
+        // into the index even if the caller asks explicitly, so no
+        // automation can accidentally push a teammate's .gitignore
+        // onto another device. To genuinely remove an already-tracked
+        // .gitignore from origin, use the "Untrack .gitignore" command.
+        if (isLocalOnlyPath(gitPath)) {
+            return;
+        }
+
         let vaultPath: string;
         if (relativeToVault) {
             vaultPath = filepath;
@@ -289,23 +313,26 @@ export class IsomorphicGit extends GitManager {
         try {
             if (status) {
                 await Promise.all(
-                    status.changed.map((file) =>
-                        file.workingDir !== "D"
-                            ? this.wrapFS(
-                                  git.add({
+                    status.changed
+                        .filter((file) => !isLocalOnlyPath(file.path))
+                        .map((file) =>
+                            file.workingDir !== "D"
+                                ? this.wrapFS(
+                                      git.add({
+                                          ...this.getRepo(),
+                                          filepath: file.path,
+                                      })
+                                  )
+                                : git.remove({
                                       ...this.getRepo(),
                                       filepath: file.path,
                                   })
-                              )
-                            : git.remove({
-                                  ...this.getRepo(),
-                                  filepath: file.path,
-                              })
-                    )
+                        )
                 );
             } else {
-                const filesToStage =
-                    unstagedFiles ?? (await this.getUnstagedFiles(dir ?? "."));
+                const filesToStage = (
+                    unstagedFiles ?? (await this.getUnstagedFiles(dir ?? "."))
+                ).filter(({ path }) => !isLocalOnlyPath(path));
                 await Promise.all(
                     filesToStage.map(({ path, type }) =>
                         type == "D"
@@ -319,6 +346,23 @@ export class IsomorphicGit extends GitManager {
         } catch (error) {
             this.plugin.displayError(error);
             throw error;
+        }
+    }
+
+    async untrackFile(filepath: string): Promise<void> {
+        try {
+            await this.wrapFS(git.remove({ ...this.getRepo(), filepath }));
+        } catch (e) {
+            // isomorphic-git's `remove` throws when the path isn't in
+            // the index; treat that as "already untracked" rather than
+            // bubble it up to the user.
+            const msg = String((e as Error)?.message ?? "");
+            if (
+                !msg.includes("Could not find") &&
+                !msg.includes("not in the index")
+            ) {
+                throw e;
+            }
         }
     }
 

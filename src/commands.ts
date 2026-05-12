@@ -30,6 +30,45 @@ export function addCommmands(plugin: ObsidianGit) {
         },
     });
     plugin.addCommand({
+        id: "untrack-gitignore",
+        name: ".gitignore 추적 해제 (origin에서도 제거)",
+        callback: async () => {
+            // Encryption-fork policy: `.gitignore` is per-device env,
+            // never shared. The stage paths already refuse to push it,
+            // but origin may still hold a `.gitignore` from before the
+            // fork was installed (or from a teammate's earlier commit).
+            // This command runs `git rm --cached .gitignore` + a commit
+            // + a push so origin stops carrying it. Teammates who pull
+            // afterwards will see the working-tree copy disappear, and
+            // their own plugin will regenerate a local default on next
+            // settings-tab open. Collaborator coordination still
+            // recommended — see README.
+            const gm = plugin.gitManager;
+            try {
+                await gm.untrackFile(".gitignore");
+                const n = await gm.commit({
+                    message:
+                        "chore: untrack .gitignore (encryption-fork policy)",
+                });
+                if (n === 0 || n === undefined) {
+                    new Notice(
+                        ".gitignore는 이미 추적 해제 상태입니다. 추가 작업이 필요 없습니다."
+                    );
+                    return;
+                }
+                await gm.push();
+                new Notice(
+                    ".gitignore의 추적이 해제되었고 origin에서도 제거되었습니다."
+                );
+            } catch (e) {
+                console.error("untrack .gitignore 실패:", e);
+                new Notice(
+                    ".gitignore 추적 해제 실패 — 개발자 콘솔을 확인하세요"
+                );
+            }
+        },
+    });
+    plugin.addCommand({
         id: "open-git-view",
         name: "소스 컨트롤 뷰 열기",
         callback: async () => {

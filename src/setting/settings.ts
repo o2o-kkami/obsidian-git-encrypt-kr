@@ -1522,27 +1522,26 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 void (async () => {
                     try {
                         const exists = await adapter.exists(gitignorePath);
+                        let content: string;
                         if (exists) {
-                            // File already exists (created by the user
-                            // earlier, or pulled from origin). Just show it.
-                            ta.setValue(await adapter.read(gitignorePath));
+                            content = await adapter.read(gitignorePath);
                         } else {
-                            // IMPORTANT: do NOT auto-write DEFAULT_GITIGNORE
-                            // here. Doing so on every settings-tab open
-                            // would silently dirty the working tree from a
-                            // read-only UI action; if the remote has its
-                            // own .gitignore (e.g. a shared team vault),
-                            // the next auto commit-and-sync would happily
-                            // overwrite the remote with our local default.
+                            // Seed the vault root with the default
+                            // .gitignore so common noise (workspace.json,
+                            // caches, …) is excluded from day one without
+                            // any user setup.
                             //
-                            // Leave the textarea empty and surface an
-                            // explicit "기본값으로 재설정" button below
-                            // — only an intentional click should write.
-                            ta.setValue("");
-                            ta.setPlaceholder(
-                                "vault에 .gitignore 파일이 없습니다. 아래 '기본값으로 재설정' 버튼을 누르면 안전한 기본값으로 생성됩니다."
-                            );
+                            // Safe to auto-write here ONLY because the
+                            // GitManager stage/commit paths in this fork
+                            // hard-filter ".gitignore" out of every push
+                            // (see isomorphicGit.ts / simpleGit.ts). The
+                            // file lives in the working tree but never
+                            // enters the index, so it cannot be shoved
+                            // onto teammates' devices through origin.
+                            content = DEFAULT_GITIGNORE;
+                            await adapter.write(gitignorePath, content);
                         }
+                        ta.setValue(content);
                     } catch (e) {
                         console.error(".gitignore 불러오기 실패:", e);
                         ta.setPlaceholder(

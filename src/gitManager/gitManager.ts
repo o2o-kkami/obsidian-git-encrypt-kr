@@ -41,6 +41,17 @@ export abstract class GitManager {
 
     abstract unstage(filepath: string, relativeToVault: boolean): Promise<void>;
 
+    /**
+     * Remove a file from the git index WITHOUT touching the working
+     * tree, equivalent to `git rm --cached <filepath>`. Used by the
+     * "Untrack .gitignore" command so the file stops being shared
+     * through origin while remaining present locally as per-device
+     * environment config.
+     *
+     * Idempotent: a no-op (no throw) if the file is already untracked.
+     */
+    abstract untrackFile(filepath: string): Promise<void>;
+
     abstract discard(filepath: string): Promise<void>;
 
     abstract discardAll(_: { dir?: string; status?: Status }): Promise<void>;

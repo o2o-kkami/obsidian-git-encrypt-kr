@@ -29,6 +29,19 @@ import { CurrentGitAction, NoNetworkError } from "../types";
 import { impossibleBranch, spawnAsync, splitRemoteBranch } from "../utils";
 import { GitManager } from "./gitManager";
 
+/**
+ * Repository-relative paths that this fork refuses to ever stage,
+ * commit, or push. They live in the working tree but never enter
+ * the index, so they cannot be propagated to other devices through
+ * origin even if a user clicks "Stage all" on them.
+ *
+ * Currently just the vault-root .gitignore — that file is treated
+ * as per-device environment config, not as shared content.
+ */
+function isLocalOnlyPath(repoPath: string): boolean {
+    return repoPath === ".gitignore";
+}
+
 export class SimpleGit extends GitManager {
     git: simple.SimpleGit;
     absoluteRepoPath: string;
@@ -562,6 +575,15 @@ export class SimpleGit extends GitManager {
         this.plugin.setPluginState({ gitAction: CurrentGitAction.add });
 
         path = this.getRelativeRepoPath(path, relativeToVault);
+
+        // Fork policy: .gitignore is per-device env, never staged.
+        // See header comment + "Untrack .gitignore" command for the
+        // path that removes an already-tracked .gitignore from origin.
+        if (isLocalOnlyPath(path)) {
+            this.plugin.setPluginState({ gitAction: CurrentGitAction.idle });
+            return;
+        }
+
         await this.git.add(["--", path]);
 
         this.plugin.setPluginState({ gitAction: CurrentGitAction.idle });
@@ -570,6 +592,15 @@ export class SimpleGit extends GitManager {
     async stageAll({ dir }: { dir?: string }): Promise<void> {
         this.plugin.setPluginState({ gitAction: CurrentGitAction.add });
         await this.git.add(dir ?? "-A");
+        // Fork policy: unstage .gitignore immediately after a bulk
+        // add, in case it was modified. The reset is best-effort —
+        // if .gitignore wasn't staged in the first place, simple-git
+        // will throw and we swallow that.
+        try {
+            await this.git.reset(["--", ".gitignore"]);
+        } catch {
+            /* not staged; nothing to undo */
+        }
         this.plugin.setPluginState({ gitAction: CurrentGitAction.idle });
     }
 
@@ -577,6 +608,19 @@ export class SimpleGit extends GitManager {
         this.plugin.setPluginState({ gitAction: CurrentGitAction.add });
         await this.git.reset(dir != undefined ? ["--", dir] : []);
         this.plugin.setPluginState({ gitAction: CurrentGitAction.idle });
+    }
+
+    async untrackFile(filepath: string): Promise<void> {
+        try {
+            await this.git.raw(["rm", "--cached", "--", filepath]);
+        } catch (e) {
+            // `git rm --cached` fails with "did not match any files"
+            // when the path isn't tracked. Treat as already-untracked.
+            const msg = String((e as Error)?.message ?? "");
+            if (!msg.includes("did not match any files")) {
+                throw e;
+            }
+        }
     }
 
     async unstage(path: string, relativeToVault: boolean): Promise<void> {
