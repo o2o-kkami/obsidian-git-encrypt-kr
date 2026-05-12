@@ -43,10 +43,10 @@ export abstract class GitManager {
 
     /**
      * Remove a file from the git index WITHOUT touching the working
-     * tree, equivalent to `git rm --cached <filepath>`. Used by the
-     * "Untrack .gitignore" command so the file stops being shared
-     * through origin while remaining present locally as per-device
-     * environment config.
+     * tree, equivalent to `git rm --cached <filepath>`. Kept on the
+     * interface for future internal use; this fork no longer exposes
+     * it as a user-facing command (the previous "Untrack .gitignore"
+     * command was removed because it raced with auto commit-and-sync).
      *
      * Idempotent: a no-op (no throw) if the file is already untracked.
      */
@@ -69,6 +69,52 @@ export abstract class GitManager {
     }): Promise<string[]>;
 
     abstract pull(): Promise<FileStatusResult[] | undefined>;
+
+    /**
+     * Per-fork policy: `.gitignore` is a per-device environment file
+     * and must never round-trip through origin. The push side is
+     * blocked by stage()/stageAll() filtering. The pull side is
+     * blocked by these two helpers: subclasses must call
+     * {@link snapshotLocalOnlyFiles} before the real pull and
+     * {@link restoreLocalOnlyFiles} after, so whatever origin tries
+     * to install into the working tree is immediately overwritten
+     * with the device's own copy.
+     */
+    private _gitignoreBuffer: string | undefined;
+    private _gitignoreBufferHasContent: boolean = false;
+
+    protected async snapshotLocalOnlyFiles(): Promise<void> {
+        const adapter = this.app.vault.adapter;
+        const vaultPath = this.getRelativeVaultPath(".gitignore");
+        if (await adapter.exists(vaultPath)) {
+            this._gitignoreBuffer = await adapter.read(vaultPath);
+            this._gitignoreBufferHasContent = true;
+        } else {
+            this._gitignoreBuffer = undefined;
+            this._gitignoreBufferHasContent = false;
+        }
+    }
+
+    protected async restoreLocalOnlyFiles(): Promise<void> {
+        const adapter = this.app.vault.adapter;
+        const vaultPath = this.getRelativeVaultPath(".gitignore");
+        if (
+            this._gitignoreBufferHasContent &&
+            this._gitignoreBuffer !== undefined
+        ) {
+            // Restore device's own .gitignore on top of whatever pull
+            // dragged in from origin.
+            await adapter.write(vaultPath, this._gitignoreBuffer);
+        } else {
+            // Device had no .gitignore before pull; make sure pull didn't
+            // install one either.
+            if (await adapter.exists(vaultPath)) {
+                await adapter.remove(vaultPath);
+            }
+        }
+        this._gitignoreBuffer = undefined;
+        this._gitignoreBufferHasContent = false;
+    }
 
     /**
      * Pushes to the remote repository.

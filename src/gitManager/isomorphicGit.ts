@@ -511,6 +511,32 @@ export class IsomorphicGit extends GitManager {
     }
 
     async pull(): Promise<FileStatusResult[]> {
+        // Fork policy (inbound half): never let origin overwrite the
+        // device's .gitignore. Snapshot it now, reset the working-tree
+        // copy to HEAD so the underlying merge doesn't refuse on a
+        // dirty .gitignore, delegate to _doPull(), then restore the
+        // snapshot in finally — whatever .gitignore origin tried to
+        // ship is silently dropped before the user sees it.
+        await this.snapshotLocalOnlyFiles();
+        try {
+            await this.wrapFS(
+                git.checkout({
+                    ...this.getRepo(),
+                    filepaths: [".gitignore"],
+                    force: true,
+                })
+            );
+        } catch {
+            /* .gitignore not yet tracked — fine, nothing to reset */
+        }
+        try {
+            return await this._doPull();
+        } finally {
+            await this.restoreLocalOnlyFiles();
+        }
+    }
+
+    private async _doPull(): Promise<FileStatusResult[]> {
         const progressNotice = this.showNotice("Initializing pull");
         try {
             this.plugin.setPluginState({ gitAction: CurrentGitAction.pull });

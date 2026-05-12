@@ -688,6 +688,25 @@ export class SimpleGit extends GitManager {
     }
 
     async pull(): Promise<FileStatusResult[] | undefined> {
+        // Fork policy (inbound half): never let origin overwrite the
+        // device's .gitignore. Snapshot it now, reset the working-tree
+        // copy to HEAD so the underlying pull doesn't refuse on a
+        // dirty .gitignore, delegate to _doPull(), then restore the
+        // snapshot in finally.
+        await this.snapshotLocalOnlyFiles();
+        try {
+            await this.git.checkout(["HEAD", "--", ".gitignore"]);
+        } catch {
+            /* .gitignore not tracked — fine */
+        }
+        try {
+            return await this._doPull();
+        } finally {
+            await this.restoreLocalOnlyFiles();
+        }
+    }
+
+    private async _doPull(): Promise<FileStatusResult[] | undefined> {
         this.plugin.setPluginState({ gitAction: CurrentGitAction.pull });
         try {
             if (this.plugin.settings.updateSubmodules)
