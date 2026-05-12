@@ -27,6 +27,30 @@
 
 설정 화면, 상태 바, 명령 팔레트, 모달 메시지를 한국어로 번역했습니다.
 
+### 3. `.gitignore` 디바이스 격리 (push/pull 양방향 차단)
+
+다중 사용자가 하나의 원격 저장소를 공유할 때, **각 사용자·기기마다 ignore
+규칙이 달라야 하는 경우**가 흔합니다 (OS별 임시 파일, OneDrive 사이드카,
+플랫폼별 캐시 경로 등). 한 사람의 `.gitignore`가 원격을 통해 모든 디바이스로
+강제 동기화되면, 작은 실수 하나로 vault 전체가 무방비하게 추적·push될 위험이
+있습니다.
+
+본 fork는 `.gitignore`를 **디바이스별 환경 파일**로 취급하여 원격과 완전히
+격리합니다:
+
+- **push 차단** — 디바이스의 `.gitignore` 변경은 원격으로 가지 않습니다
+  (stage 시점에서 hard-filter).
+- **pull 차단** — 원격의 `.gitignore`는 디바이스의 working tree를 덮어쓰지
+  않습니다 (pull 전 스냅샷 → pull 후 복원).
+- **ignore 규칙은 정상 동작** — `.gitignore`에 적힌 규칙 자체(`.obsidian/`
+  제외 등)는 디바이스 working tree 기준으로 push 시점에 그대로 적용되므로
+  ignore 동작은 손상되지 않습니다.
+
+> 💡 **단일 사용자가 개인 vault만 동기화하는 경우**엔 위 정책이 불필요한
+> 복잡도일 수 있습니다. 그런 환경이라면
+> [원저자 plugin (`Vinzent03/obsidian-git`)](https://github.com/Vinzent03/obsidian-git)
+> 설치를 권장합니다.
+
 ---
 
 ## ⚠️ 비밀번호 보관 — 반드시 읽어주세요
