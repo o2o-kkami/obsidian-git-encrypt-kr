@@ -18,6 +18,7 @@ import { pluginRef } from "src/pluginGlobalRef";
 import { PromiseQueue } from "src/promiseQueue";
 import { ObsidianGitSettingsTab } from "src/setting/settings";
 import { StatusBar } from "src/statusBar";
+import { AuthorInfoModal } from "src/ui/modals/authorInfoModal";
 import { CustomMessageModal } from "src/ui/modals/customMessageModal";
 import AutomaticsManager from "./automaticsManager";
 import { addCommmands } from "./commands";
@@ -546,6 +547,57 @@ export default class ObsidianGit extends Plugin {
         await this.saveData(this.settings);
     }
 
+    /**
+     * Encryption-fork onboarding: make sure `user.name` and `user.email`
+     * are set in `.git/config` before any commit runs. Called from
+     * {@link init} during the "valid repo" branch, so we know
+     * `gitManager.getConfig` / `setConfig` will work.
+     *
+     * Flow:
+     *   - Both fields already set → no-op (silent).
+     *   - Either field missing → open {@link AuthorInfoModal}:
+     *       - User submits name+email → persist via setConfig.
+     *       - User picks "건너뛰기 (Anonymous 사용)" → persist a dummy
+     *         identity ("Anonymous" / "anonymous@local") and surface a
+     *         notice nudging them to set a real one if they collaborate.
+     *       - User dismisses the modal (Esc / 바깥 클릭) → do nothing.
+     *         Next init re-prompts. Better than silently filling in
+     *         garbage behind the user's back.
+     */
+    async ensureAuthorInfo(): Promise<void> {
+        try {
+            const gm = this.gitManager;
+            const name = await gm.getConfig("user.name");
+            const email = await gm.getConfig("user.email");
+            if (name && email) return;
+
+            const result = await new AuthorInfoModal(
+                this.app
+            ).openAndGetResult();
+
+            if (result.kind === "input") {
+                await gm.setConfig("user.name", result.name);
+                await gm.setConfig("user.email", result.email);
+                new Notice("Git 작성자 정보가 저장되었습니다.");
+            } else if (result.kind === "skip") {
+                await gm.setConfig("user.name", "Anonymous");
+                await gm.setConfig("user.email", "anonymous@local");
+                new Notice(
+                    "익명으로 commit 작성자를 설정했습니다. 협업 vault라면 설정 화면에서 변경하세요.",
+                    8000
+                );
+            }
+            // result.kind === "cancel" → leave .git/config as-is; next
+            // init() will surface the modal again. (Commit will still
+            // fail with the upstream error message if the user keeps
+            // dismissing the modal, but at least we tried first.)
+        } catch (e) {
+            console.error("ensureAuthorInfo 실패:", e);
+            // Don't block init on this — let upstream's checkAuthorInfo
+            // raise its own error at commit time if we couldn't help.
+        }
+    }
+
     get useSimpleGit(): boolean {
         return Platform.isDesktopApp;
     }
@@ -712,6 +764,21 @@ export default class ObsidianGit extends Plugin {
                                 DEFAULT_GITIGNORE
                             );
                         }
+                    }
+
+                    // Fork policy: author info onboarding. checkAuthorInfo()
+                    // in IsomorphicGit throws an opaque "set name+email
+                    // in settings" error at commit time, which is bad UX
+                    // (user already configured everything, ran init/clone,
+                    // and hits the wall on first commit). Prompt up front
+                    // instead: if user.name/user.email aren't both set in
+                    // .git/config, open an onboarding modal once that
+                    // accepts a name+email or a "skip → Anonymous" option,
+                    // and persist the result back to .git/config. Skipped
+                    // when encryption is locked since no commit can run
+                    // in that state anyway.
+                    if (!locked) {
+                        await this.ensureAuthorInfo();
                     }
 
                     if (

@@ -20,6 +20,12 @@ export const DEFAULT_GITIGNORE = `.obsidian/
 .claude/
 .trash/
 .DS_Store
+
+# .gitignore 자체를 ignore — 디바이스별 환경 파일이라 원격과 공유하지 않음.
+# 효과는 이 파일이 아직 추적되지 않은 상태(예: fresh repo)에서만 작동하며,
+# 한 번 origin에 push된 적이 있는 vault는 .gitignore가 이미 tracked라서
+# 이 규칙은 무시됨. 그런 경우 origin reset 후 fresh start에서 효과.
+.gitignore
 `;
 
 export const DEFAULT_SETTINGS: ObsidianGitSettings = {
