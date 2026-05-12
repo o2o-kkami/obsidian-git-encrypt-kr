@@ -1522,14 +1522,27 @@ export class ObsidianGitSettingsTab extends PluginSettingTab {
                 void (async () => {
                     try {
                         const exists = await adapter.exists(gitignorePath);
-                        let content: string;
                         if (exists) {
-                            content = await adapter.read(gitignorePath);
+                            // File already exists (created by the user
+                            // earlier, or pulled from origin). Just show it.
+                            ta.setValue(await adapter.read(gitignorePath));
                         } else {
-                            content = DEFAULT_GITIGNORE;
-                            await adapter.write(gitignorePath, content);
+                            // IMPORTANT: do NOT auto-write DEFAULT_GITIGNORE
+                            // here. Doing so on every settings-tab open
+                            // would silently dirty the working tree from a
+                            // read-only UI action; if the remote has its
+                            // own .gitignore (e.g. a shared team vault),
+                            // the next auto commit-and-sync would happily
+                            // overwrite the remote with our local default.
+                            //
+                            // Leave the textarea empty and surface an
+                            // explicit "기본값으로 재설정" button below
+                            // — only an intentional click should write.
+                            ta.setValue("");
+                            ta.setPlaceholder(
+                                "vault에 .gitignore 파일이 없습니다. 아래 '기본값으로 재설정' 버튼을 누르면 안전한 기본값으로 생성됩니다."
+                            );
                         }
-                        ta.setValue(content);
                     } catch (e) {
                         console.error(".gitignore 불러오기 실패:", e);
                         ta.setPlaceholder(
