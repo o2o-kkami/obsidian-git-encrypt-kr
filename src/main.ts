@@ -23,6 +23,7 @@ import AutomaticsManager from "./automaticsManager";
 import { addCommmands } from "./commands";
 import {
     CONFLICT_OUTPUT_FILE,
+    DEFAULT_GITIGNORE,
     DEFAULT_SETTINGS,
     DIFF_VIEW_CONFIG,
     HISTORY_VIEW_CONFIG,
@@ -682,6 +683,36 @@ export default class ObsidianGit extends Plugin {
                     // routines — they would push plaintext or write
                     // un-decrypted bytes into the vault.
                     const locked = this.isEncryptionLocked();
+
+                    // Fork policy: seed a default .gitignore on disk BEFORE
+                    // any sync timer can fire. Without this, an auto
+                    // commit-and-sync that wins the race against the user
+                    // opening the settings tab would call statusMatrix on a
+                    // vault that has no ignore rules, mark .obsidian/* as
+                    // untracked, stageAll them, and silently push the whole
+                    // .obsidian tree to origin. Once a file is tracked,
+                    // adding it to .gitignore later does NOT untrack it,
+                    // so the only safe place to plug this hole is at
+                    // plugin init, before any timer/auto-pull-on-boot
+                    // gets a chance to run.
+                    //
+                    // exists() is intentional: if the user already has a
+                    // .gitignore (auto-pulled here at some point, written
+                    // manually, or deliberately blanked out), we don't
+                    // overwrite it. Only "fresh device, no .gitignore yet"
+                    // gets the default. Anything they do after this is
+                    // their explicit intent and we keep our hands off.
+                    if (!locked) {
+                        const adapter = this.app.vault.adapter;
+                        const gitignorePath =
+                            this.gitManager.getRelativeVaultPath(".gitignore");
+                        if (!(await adapter.exists(gitignorePath))) {
+                            await adapter.write(
+                                gitignorePath,
+                                DEFAULT_GITIGNORE
+                            );
+                        }
+                    }
 
                     if (
                         !fromReload &&
