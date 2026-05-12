@@ -539,6 +539,15 @@ export class SimpleGit extends GitManager {
         this.plugin.setPluginState({ gitAction: CurrentGitAction.add });
 
         await this.git.add("-A");
+        // Fork policy: this commitAll path skips stageAll entirely
+        // and calls `git add -A` directly, so the isLocalOnlyPath
+        // filter we put in stageAll never runs. Mirror the unstage
+        // here so .gitignore never enters this commit either.
+        try {
+            await this.git.reset(["--", ".gitignore"]);
+        } catch {
+            /* not staged; nothing to undo */
+        }
 
         this.plugin.setPluginState({ gitAction: CurrentGitAction.commit });
 
