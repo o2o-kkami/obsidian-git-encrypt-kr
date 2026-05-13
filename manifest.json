@@ -5,5 +5,5 @@
     "name": "Git (암호화)",
     "description": "obsidian-git 포크. AES-256-GCM으로 vault 파일을 투명하게 암호화하여 git 서버에는 ciphertext만 전송합니다.",
     "isDesktopOnly": false,
-    "version": "2.38.2-enc.6"
+    "version": "2.38.2-enc.7"
 }
